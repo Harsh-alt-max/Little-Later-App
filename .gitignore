@@ -1,0 +1,7 @@
+# Signing keys never go in git
+*.jks
+*.keystore
+key.properties
+dist/
+.DS_Store
+app/test/shots/out/

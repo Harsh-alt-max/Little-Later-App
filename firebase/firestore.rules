@@ -1,0 +1,57 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email != null;
+    }
+    function isOwner(email) {
+      return isSignedIn() && request.auth.token.email.lower() == email.lower();
+    }
+
+    // 1. Your own profile and backup (ideas, folders, streak, hearts, Lil)
+    match /users/{userEmail} {
+      allow get: if isOwner(userEmail);
+      allow create, update: if isOwner(userEmail)
+        && request.resource.data.keys().hasAll(['email', 'backupPayload', 'lastSeenAt'])
+        && request.resource.data.email.lower() == userEmail.lower()
+        && request.resource.data.backupPayload is string
+        && request.resource.data.backupPayload.size() <= 900000;
+      allow list, delete: if false;
+    }
+
+    // 2. Shared folders: signed-in people only
+    match /collab_folders/{folderId} {
+      allow get: if isSignedIn() && folderId.matches('^cf_[a-z0-9_]+$');
+      allow create, update: if isSignedIn()
+        && folderId.matches('^cf_[a-z0-9_]+$')
+        && request.resource.data.keys().hasAll(['version', 'payload'])
+        && request.resource.data.payload is string
+        && request.resource.data.payload.size() <= 900000;
+      allow list, delete: if false;
+    }
+
+    // 3. Folder invites: signed-in people only
+    match /user_invites/{userEmail} {
+      allow get, create, update: if isSignedIn()
+        && (request.method == 'get' || (
+          request.resource.data.keys().hasAll(['invitesPayload', 'updatedAt'])
+          && request.resource.data.invitesPayload is string
+          && request.resource.data.invitesPayload.size() <= 200000));
+      allow list, delete: if false;
+    }
+
+    // 4. Google sign-in handoff: long random session IDs only
+    match /collab_state/{authSession} {
+      allow get: if authSession.size() >= 37;
+      allow create, update: if authSession.size() >= 37
+        && request.resource.data.keys().hasAll(['email', 'ts']);
+      allow list, delete: if false;
+    }
+
+    // 5. Everything else is closed
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

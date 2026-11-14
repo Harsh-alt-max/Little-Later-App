@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#04050A">
+<title>Join a folder · Little Later</title>
+<meta property="og:title" content="You’re invited to a Little Later folder">
+<meta property="og:image" content="icon.png">
+<link rel="icon" href="icon.png">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:24px;background:#04050A;background-image:radial-gradient(60% 40% at 50% 30%,rgba(77,124,255,.25),transparent 70%);color:#F2F4FA;font-family:Manrope,system-ui,sans-serif}
+.card{width:100%;max-width:380px;padding:30px 24px 26px;border-radius:30px;background:#0D1018;text-align:center;box-shadow:0 30px 70px rgba(0,0,0,.5)}
+img{width:120px;height:120px;margin:-90px auto 4px;display:block;animation:bob 3s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-6px)}}
+h1{font-size:25px;line-height:1.2;letter-spacing:-.03em;margin:6px 0 8px}
+.folder{display:inline-flex;align-items:center;gap:8px;margin:4px 0 22px;padding:8px 14px;border-radius:99px;background:rgba(77,124,255,.15);color:#B6C8FF;font-weight:800}
+p{color:rgba(242,244,250,.6);font-size:14px;line-height:1.5;margin:14px 0 0}
+.btn{display:flex;align-items:center;justify-content:center;width:100%;height:56px;border-radius:99px;font-weight:800;font-size:16px;text-decoration:none}
+.primary{background:#4D7CFF;color:#fff;box-shadow:0 14px 30px rgba(61,107,245,.38)}
+.ghost{margin-top:10px;background:#141824;color:#F2F4FA}
+</style>
+</head>
+<body>
+<div class="card">
+  <img src="mascot.png" alt="">
+  <h1 id="h">You’re invited</h1>
+  <div class="folder" id="f">Shared folder</div>
+  <a class="btn primary" id="open" href="#">Open in Little Later</a>
+  <a class="btn ghost" href="./">Get the app</a>
+  <p>Don’t have Little Later yet? Get the app first, sign in, then come back and tap the invite link again.</p>
+</div>
+<script>
+const q=new URLSearchParams(location.search);
+const cid=q.get('cid')||'',folder=q.get('join')||'Shared folder',by=q.get('by')||'';
+document.getElementById('h').textContent=by?`${by} invited you`:'You’re invited';
+document.getElementById('f').textContent=folder;
+const params=new URLSearchParams({cid,join:folder});if(by)params.set('by',by);
+const deep=`littlelater://join?${params}`;
+const isAndroid=/Android/i.test(navigator.userAgent);
+const site=location.href.replace(/join\.html.*$/,'');
+document.getElementById('open').href=isAndroid
+  ?`intent://join?${params}#Intent;scheme=littlelater;package=com.littlelater.app;S.browser_fallback_url=${encodeURIComponent(site)};end`
+  :deep;
+if(!cid){document.getElementById('open').style.display='none'}
+</script>
+</body>
+</html>
