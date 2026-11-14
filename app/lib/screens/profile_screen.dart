@@ -293,7 +293,7 @@ class ProfileScreen extends StatelessWidget {
       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         const SheetTitle('Chrome extension'),
         Card28(children: [
-          step('1', 'Open the Little Later site on your laptop', 'harsh-alt-max.github.io/little-later-app'),
+          step('1', 'Open the Little Later site on your laptop', 'harsh-alt-max.github.io/Little-Later-App'),
           step('2', 'Add to Chrome', 'Sign in with the same account as here'),
           step('3', 'Save from any tab', 'It shows up here instantly'),
         ]),

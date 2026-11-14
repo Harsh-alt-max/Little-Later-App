@@ -15,4 +15,4 @@ const firebaseOptions = FirebaseOptions(
 const googleWebClientId = String.fromEnvironment('GOOGLE_WEB_CLIENT_ID');
 
 /// Public website (GitHub Pages). Used for invite links and the privacy page.
-const siteUrl = 'https://harsh-alt-max.github.io/little-later-app';
+const siteUrl = 'https://harsh-alt-max.github.io/Little-Later-App';

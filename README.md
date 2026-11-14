@@ -5,7 +5,7 @@ Save links, reminders and to-dos from any app, and get them back right when you 
 | Folder | What it is |
 |---|---|
 | `app/` | The Android app (Flutter), v1.4 |
-| `website/` | Download page, invite page, privacy and terms. Published to https://harsh-alt-max.github.io/little-later-app/ |
+| `website/` | Download page, invite page, privacy and terms. Published to https://harsh-alt-max.github.io/Little-Later-App/ |
 | `firebase/` | Firestore security rules (paste into Firebase console → Firestore → Rules) |
 | `extension/` | Chrome extension (coming next) |
 
