@@ -80,7 +80,7 @@ class _MascotViewState extends State<MascotView> with TickerProviderStateMixin {
   late final AnimationController _act = AnimationController(vsync: this);
   MascotAct? _current;
   StreamSubscription<MascotAct>? _sub;
-  Timer? _blinkTimer;
+  Timer? _blinkTimer, _blinkOff;
   bool _blink = false;
   final _rand = math.Random();
 
@@ -121,7 +121,7 @@ class _MascotViewState extends State<MascotView> with TickerProviderStateMixin {
       final m = widget.controller?.current ?? widget.staticMood;
       if (m == Mood.idle) {
         setState(() => _blink = true);
-        Timer(const Duration(milliseconds: 120), () {
+        _blinkOff = Timer(const Duration(milliseconds: 120), () {
           if (mounted) setState(() => _blink = false);
         });
       }
@@ -146,6 +146,7 @@ class _MascotViewState extends State<MascotView> with TickerProviderStateMixin {
   void dispose() {
     _detach();
     _blinkTimer?.cancel();
+    _blinkOff?.cancel();
     _bob.dispose();
     _act.dispose();
     super.dispose();
