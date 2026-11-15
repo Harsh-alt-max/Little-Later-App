@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../data/models.dart';
@@ -12,6 +11,7 @@ import '../widgets/common.dart';
 import '../widgets/icons.dart';
 import '../widgets/item_tile.dart';
 import '../widgets/kit.dart';
+import '../services/haptics.dart';
 
 /// v7 .rem: full-screen "Did you watch this?" when a reminder fires.
 class ReminderScreen extends StatefulWidget {
@@ -27,7 +27,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
   @override
   void initState() {
     super.initState();
-    HapticFeedback.heavyImpact();
+    Haptics.heavy();
     Timer(const Duration(milliseconds: 300), () {
       if (!mounted) return;
       _m.play(MascotAct.hop);
@@ -53,7 +53,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
     final s = AppScope.of(context);
     _m.play(MascotAct.hop);
     _m.mood(Mood.happy);
-    HapticFeedback.mediumImpact();
+    Haptics.medium();
     if (!widget.item.isDone) s.store.complete(widget.item.id);
     await Future.delayed(const Duration(milliseconds: 500));
     if (!mounted) return;
@@ -67,7 +67,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
     final n = AppStore.now();
     final d = k == 'tonight' ? DateTime(n.year, n.month, n.day + (n.hour >= 20 ? 1 : 0), 20) : n.add(Duration(minutes: int.parse(k)));
     _m.mood(Mood.sleep, const Duration(milliseconds: 900));
-    HapticFeedback.lightImpact();
+    Haptics.light();
     s.store.snoozeTo(widget.item.id, d);
     await Future.delayed(const Duration(milliseconds: 600));
     if (!mounted) return;

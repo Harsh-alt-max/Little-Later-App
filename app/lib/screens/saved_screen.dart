@@ -52,6 +52,7 @@ class _SavedScreenState extends State<SavedScreen> {
   }
 
   bool _pass(Item it) {
+    if (it.extra['msg'] == true) return false; // chat messages live in their folder
     final f = switch (_filter) {
       'link' => it.kind == ItemKind.link && it.url.isNotEmpty,
       'reminder' => it.whenTs > 0 && it.kind != ItemKind.todoList,

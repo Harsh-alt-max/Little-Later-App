@@ -21,14 +21,25 @@ class SyncService {
   Timer? _debounce;
   String _email = '';
   bool _firstPull = true;
+  Completer<void>? _firstDone;
 
   FirebaseFirestore get _db => FirebaseFirestore.instance;
+
+  /// Start syncing and wait (up to [timeout]) for the first cloud copy, so a
+  /// quick save from the share window never overwrites newer data.
+  Future<void> startAndWait(String email, {Duration timeout = const Duration(seconds: 5)}) async {
+    start(email);
+    final c = _firstDone;
+    if (c == null) return;
+    await c.future.timeout(timeout, onTimeout: () {});
+  }
 
   void start(String email) {
     if (!enabled || email.isEmpty) return;
     stop();
     _email = email.toLowerCase();
     _firstPull = true;
+    _firstDone = Completer<void>();
     _userSub = _db.collection('users').doc(_email).snapshots().listen(_onUser, onError: (_) {});
     _changeSub = store.changes.listen((_) {
       _debounce?.cancel();
@@ -71,6 +82,7 @@ class SyncService {
     }
     if (_firstPull) {
       _firstPull = false;
+      if (!(_firstDone?.isCompleted ?? true)) _firstDone!.complete();
       // Upload anything that only exists on this phone (e.g. saved as a guest).
       _pushUser();
     }

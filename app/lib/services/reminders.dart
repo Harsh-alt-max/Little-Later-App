@@ -66,12 +66,14 @@ class Reminders {
     return ok;
   }
 
-  /// Move a time out of quiet hours (11 pm–7 am) to 7 am.
+  /// Move a time out of quiet hours (your own hours, e.g. 11 pm–7 am) to when they end.
   DateTime _quiet(DateTime d) {
-    if (!store.quietOn) return d;
-    if (d.hour >= 23) return DateTime(d.year, d.month, d.day + 1, 7);
-    if (d.hour < 7) return DateTime(d.year, d.month, d.day, 7);
-    return d;
+    if (!store.quietOn || store.quietFrom == store.quietTo) return d;
+    final f = store.quietFrom, to = store.quietTo, h = d.hour;
+    final inside = f < to ? (h >= f && h < to) : (h >= f || h < to);
+    if (!inside) return d;
+    final sameDay = f < to || h < to;
+    return DateTime(d.year, d.month, d.day + (sameDay ? 0 : 1), to);
   }
 
   Future<void> reschedule() async {

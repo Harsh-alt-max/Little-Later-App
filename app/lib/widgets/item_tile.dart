@@ -1,4 +1,3 @@
-import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -9,6 +8,7 @@ import '../theme/tokens.dart';
 import 'common.dart';
 import 'icons.dart';
 import 'kit.dart';
+import '../services/haptics.dart';
 
 Future<void> openItemUrl(AppScope s, Item it) async {
   final u = Uri.tryParse(it.url);
@@ -53,7 +53,7 @@ class _ItemTileState extends State<ItemTile> with SingleTickerProviderStateMixin
         it.completedAt = 0;
         st.touchItem(it);
       case 'remind':
-        final d = await pickTime(context, initial: whenDate(When.tomorrow, st, null)!);
+        final d = await pickLater(context);
         if (d == null) return;
         st.setWhen(it.id, d);
         s.app.reminders.askPermission();
@@ -174,7 +174,7 @@ class _ItemTileState extends State<ItemTile> with SingleTickerProviderStateMixin
                             GestureDetector(
                               behavior: HitTestBehavior.opaque,
                               onTap: () {
-                                HapticFeedback.selectionClick();
+                                Haptics.tick();
                                 s.store.toggleTask(it.id, tk.id);
                               },
                               child: Padding(

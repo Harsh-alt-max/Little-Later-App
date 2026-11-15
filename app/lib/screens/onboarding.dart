@@ -1,15 +1,16 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../mascot/mascot_svg.dart';
 import '../mascot/mascot_view.dart';
+import '../services/auth.dart';
 import '../theme/tokens.dart';
 import '../widgets/common.dart';
 import '../widgets/icons.dart';
 import '../widgets/kit.dart';
+import '../services/haptics.dart';
 
 /// v7 onboarding: three steps, pick a look and a name, then sign in.
 class Onboarding extends StatefulWidget {
@@ -59,7 +60,7 @@ class _OnboardingState extends State<Onboarding> {
 
   void _go(int s) {
     if (s < 0 || s > 2) return;
-    HapticFeedback.selectionClick();
+    Haptics.tick();
     setState(() => _step = s);
     if (s == 0) _m.play(MascotAct.hop);
     if (s == 1) _m.play(MascotAct.nod);
@@ -278,7 +279,7 @@ class _OnboardingState extends State<Onboarding> {
                     style: s,
                     selected: st.mascotStyle == s,
                     onTap: () {
-                      HapticFeedback.selectionClick();
+                      Haptics.tick();
                       AppScope.of(context).store.setStyle(s);
                       setState(() {});
                     },
@@ -380,7 +381,7 @@ class _AuthSheetState extends State<AuthSheet> {
   final _em = TextEditingController();
   final _pw = TextEditingController();
   final _pwF = FocusNode();
-  bool _signUp = false, _show = false, _busy = false, _cover = false;
+  bool _signUp = false, _show = false, _busy = false, _cover = false, _verify = false;
   bool _emErr = false, _pwErr = false;
 
   @override
@@ -399,7 +400,7 @@ class _AuthSheetState extends State<AuthSheet> {
   }
 
   void _shake(String msg) {
-    HapticFeedback.heavyImpact();
+    Haptics.heavy();
     _m.mood(Mood.wow, const Duration(milliseconds: 900));
     setState(() => _cover = false);
     AppScope.of(context).toast.show(msg);
@@ -422,11 +423,28 @@ class _AuthSheetState extends State<AuthSheet> {
     final err = await AppScope.of(context).app.auth.email(_em.text, _pw.text, signUp: _signUp);
     if (!mounted) return;
     setState(() => _busy = false);
+    if (err == AuthService.verify) {
+      setState(() => _verify = true);
+      _m.mood(Mood.wow, const Duration(milliseconds: 1200));
+      return;
+    }
     if (err != null) {
       _shake(err);
       return;
     }
     _success();
+  }
+
+  Future<void> _checkVerified() async {
+    setState(() => _busy = true);
+    final ok = await AppScope.of(context).app.auth.checkVerified();
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (ok) {
+      _success();
+    } else {
+      _shake('Not verified yet. Open the link in your email first.');
+    }
   }
 
   Future<void> _google() async {
@@ -443,7 +461,7 @@ class _AuthSheetState extends State<AuthSheet> {
   }
 
   void _success() {
-    HapticFeedback.mediumImpact();
+    Haptics.medium();
     _m.play(MascotAct.hop);
     _m.mood(Mood.happy);
     FocusScope.of(context).unfocus();
@@ -478,7 +496,39 @@ class _AuthSheetState extends State<AuthSheet> {
           const SizedBox(height: 4),
           Text(_signUp ? 'Free. Syncs your phone and Chrome.' : 'Sign in to sync your ideas everywhere', textAlign: TextAlign.center, style: t(14.5, FontWeight.w500, ll.ink2)),
           const SizedBox(height: 18),
-          if (s.app.auth.googleAvailable) ...[
+          if (_verify) ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: ll.blueSoft, borderRadius: BorderRadius.circular(22)),
+              child: Column(children: [
+                LLIcon('mail', size: 28, color: ll.blueInk),
+                const SizedBox(height: 8),
+                Text('Check your inbox', style: t(17, FontWeight.w800, ll.ink)),
+                const SizedBox(height: 4),
+                Text('We sent a link to ${_em.text.trim()}. Tap it to confirm it’s really you, then come back here.', textAlign: TextAlign.center, style: t(13.5, FontWeight.w500, ll.ink2, h: 1.45)),
+              ]),
+            ),
+            const SizedBox(height: 14),
+            BigButton(label: _busy ? 'Checking…' : 'I’ve confirmed my email', enabled: !_busy, onTap: _checkVerified),
+            const SizedBox(height: 10),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Tap(
+                onTap: () async {
+                  await s.app.auth.signOut();
+                  setState(() => _verify = false);
+                },
+                child: Text('Use another email', style: t(14, FontWeight.w800, ll.ink2)),
+              ),
+              Tap(
+                onTap: () async {
+                  final e = await s.app.auth.resendVerification();
+                  s.toast.show(e ?? 'Sent again. Check spam too.');
+                },
+                child: Text('Resend link', style: t(14, FontWeight.w800, ll.blueInk)),
+              ),
+            ]),
+          ] else ...[
+          ...[
             Tap(
               onTap: _busy ? null : _google,
               child: Container(
@@ -531,7 +581,7 @@ class _AuthSheetState extends State<AuthSheet> {
             Text(_signUp ? 'Have an account? ' : 'New here? ', style: t(14, FontWeight.w600, ll.ink2)),
             Tap(
               onTap: () {
-                HapticFeedback.selectionClick();
+                Haptics.tick();
                 setState(() => _signUp = !_signUp);
                 _m.play(MascotAct.nod);
               },
@@ -541,6 +591,7 @@ class _AuthSheetState extends State<AuthSheet> {
           if (widget.showGuest && !_signUp) ...[
             const SizedBox(height: 10),
             Center(child: Tap(onTap: _forgot, child: Text('Forgot password?', style: t(13, FontWeight.w700, ll.ink3)))),
+          ],
           ],
         ]),
       ),

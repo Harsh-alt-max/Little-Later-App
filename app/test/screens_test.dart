@@ -47,6 +47,7 @@ Future<void> tapText(WidgetTester tester, String s, [int ms = 800]) async {
 }
 
 Future<void> tab(WidgetTester tester, String label) async {
+  await tester.pump();
   final circ = find.byWidgetPredicate((w) => w is Circ && w.label == label);
   await tester.tap(circ.evaluate().isNotEmpty ? circ.last : find.bySemanticsLabel(label).last);
   await go(tester);
@@ -87,7 +88,9 @@ void main() {
     expect(find.text('New folder'), findsWidgets);
     await tab(tester, 'Profile');
     expect(find.text('Aarav'), findsOneWidget);
-    expect(find.text('Morning reminder'), findsOneWidget);
+    expect(find.text('Quiet hours'), findsOneWidget);
+    expect(find.text('Morning reminder'), findsNothing);
+    expect(find.text('Privacy and terms'), findsNothing);
     await tester.scrollUntilVisible(find.text('Little Later 1.4'), 300);
     await go(tester, 300);
     await tab(tester, 'Today');
@@ -103,7 +106,6 @@ void main() {
     await tapText(tester, 'Reminder');
     await tester.enterText(find.byType(EditableText).first, 'Call the plumber');
     await go(tester, 300);
-    await tapText(tester, 'In 1 hour', 400);
     await tapText(tester, 'Set reminder', 1500);
     expect(store.items.length, n + 1);
     final it = store.items.first;
@@ -139,7 +141,7 @@ void main() {
     expect(find.text('Add to Hobby'), findsOneWidget);
     expect(find.text('Only you'), findsOneWidget);
     await tab(tester, 'Back');
-    await tab(tester, 'New folder');
+    await tapText(tester, 'New folder');
     await tester.enterText(find.byType(EditableText).first, 'Books');
     await go(tester, 300);
     await tapText(tester, 'Create folder', 1000);
@@ -201,6 +203,66 @@ void main() {
     expect(find.text('Did you watch this?'), findsOneWidget);
     await tapText(tester, 'I did it', 1200);
     expect(store.byId('d1')!.isDone, isTrue);
+    await go(tester, 4000);
+  });
+
+  testWidgets('Next up: Later picks a time, Revisited animates and completes', (tester) async {
+    final store = await pump(tester);
+    expect(find.text('Save a link or idea'), findsOneWidget);
+    expect(find.text('Search your saved ideas'), findsNothing);
+    await tester.tap(find.text('Later').first);
+    await go(tester, 900);
+    expect(find.text('Later, when?'), findsOneWidget);
+    // Move it to tomorrow: pick the "Tmrw" day, then set.
+    await tapText(tester, 'Tmrw', 300);
+    await tapText(tester, 'Set time', 1200);
+    expect(store.todayQueue.first.id, isNot('d1'));
+    await tapText(tester, 'Undo', 600);
+    expect(store.todayQueue.first.id, 'd1');
+    await tester.tap(find.text('Revisited'));
+    await go(tester, 200);
+    expect(find.text('Nice!'), findsOneWidget);
+    await go(tester, 1600);
+    expect(store.byId('d1')!.isDone, isTrue);
+    await go(tester, 4000);
+  });
+
+  testWidgets('shared folder is a chat: send a message', (tester) async {
+    final store = await pump(tester);
+    store.userEmail = 'me@x.com';
+    store.guest = false;
+    final f = store.folderNamed('Love')!..collab = true;
+    f.extra['collabId'] = 'cf_me_x_com_abc';
+    f.extra['ownerEmail'] = 'me@x.com';
+    store.byId('d2')!.extra['senderEmail'] = 'riya@x.com';
+    store.byId('d2')!.extra['senderName'] = 'Riya';
+    await tab(tester, 'Folders');
+    await tester.tap(find.bySemanticsLabel(RegExp('^Love')).first);
+    await go(tester);
+    expect(find.text('Riya'), findsOneWidget); // friend's bubble shows their name
+    await tester.enterText(find.byType(EditableText).last, 'Booked the table for Friday');
+    await tester.tap(find.bySemanticsLabel('Send').last);
+    await go(tester, 600);
+    expect(store.items.first.title, 'Booked the table for Friday');
+    expect(store.items.first.extra['msg'], isTrue);
+    expect(store.folderCount('Love'), 2); // messages don't count as saved items
+    await go(tester, 4000);
+  });
+
+  testWidgets('save sheet: add a note, Today at a chosen time', (tester) async {
+    final store = await pump(tester);
+    await tab(tester, 'Save a new idea');
+    await tester.enterText(find.byType(EditableText).first, 'https://example.com/recipes/pasta-al-limone');
+    await go(tester, 800);
+    await tapText(tester, 'Add a note', 500);
+    await tester.enterText(find.byType(EditableText).last, 'lemons, parmesan');
+    await tapText(tester, 'Tomorrow', 800);
+    expect(find.text('Tomorrow at…'), findsOneWidget);
+    await tapText(tester, 'Set time', 800);
+    await tapText(tester, 'Save link', 1500);
+    final it = store.items.first;
+    expect(it.note, 'lemons, parmesan');
+    expect(DateTime.fromMillisecondsSinceEpoch(it.reminder), DateTime(2026, 11, 15, 9));
     await go(tester, 4000);
   });
 

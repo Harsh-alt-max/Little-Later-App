@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../mascot/mascot_svg.dart';
 import 'models.dart';
+import 'titles.dart';
 
 class Level {
   const Level(this.n, this.name, this.min);
@@ -80,6 +81,8 @@ class AppStore extends ChangeNotifier {
   bool notifOn = true;
   bool quietOn = true;
   int morningHour = 9;
+  int quietFrom = 23;
+  int quietTo = 7;
   int localUpdatedAt = 0;
 
   // Game
@@ -115,11 +118,32 @@ class AppStore extends ChangeNotifier {
     } else if (demo) {
       s.seedDemo();
     }
+    // Tidy titles saved by earlier builds (whole Instagram captions, &#x…; codes).
+    for (final it in s.items) {
+      if (it.title.contains('&#') || it.title.length > 90 || it.title.contains(' on Instagram:')) it.title = cleanTitle(it.title);
+    }
     s._rollover();
     return s;
   }
 
   factory AppStore.memory() => AppStore._(null);
+
+  /// Re-read saved state (the share window writes to the same storage).
+  Future<void> reloadFromDisk() async {
+    final p = _prefs;
+    if (p == null) return;
+    try {
+      await p.reload();
+      final raw = p.getString(_key);
+      if (raw == null) return;
+      final j = jsonDecode(raw) as Map<String, dynamic>;
+      if (((j['updatedAt'] as num?)?.toInt() ?? 0) <= localUpdatedAt) return;
+      fromJson(j, includeAccount: true);
+      _rollover();
+      notifyListeners();
+      _changes.add(null);
+    } catch (_) {}
+  }
 
   // ---------------------------------------------------------------------------
   // Derived
@@ -146,7 +170,7 @@ class AppStore extends ChangeNotifier {
   int get todayTotal => todayQueue.length + doneToday;
 
   List<Item> inFolder(String name) => items.where((i) => i.folder.toLowerCase() == name.toLowerCase()).toList();
-  int folderCount(String name) => items.where((i) => !i.isDone && i.folder.toLowerCase() == name.toLowerCase()).length;
+  int folderCount(String name) => items.where((i) => !i.isDone && i.extra['msg'] != true && i.folder.toLowerCase() == name.toLowerCase()).length;
 
   Folder? folderNamed(String name) {
     for (final f in folders) {
@@ -475,12 +499,14 @@ class AppStore extends ChangeNotifier {
     _save();
   }
 
-  void setPrefs({bool? dark, bool? haptic, bool? notif, bool? quiet, int? morning, String? name}) {
+  void setPrefs({bool? dark, bool? haptic, bool? notif, bool? quiet, int? morning, String? name, int? qFrom, int? qTo}) {
     if (dark != null) darkTheme = dark;
     if (haptic != null) haptics = haptic;
     if (notif != null) notifOn = notif;
     if (quiet != null) quietOn = quiet;
     if (morning != null) morningHour = morning;
+    if (qFrom != null) quietFrom = qFrom;
+    if (qTo != null) quietTo = qTo;
     if (name != null && name.trim().isNotEmpty) userName = name.trim();
     _save();
   }
@@ -515,7 +541,7 @@ class AppStore extends ChangeNotifier {
         'updatedAt': localUpdatedAt,
         if (includeAccount) 'user': {'name': userName, 'email': userEmail, 'guest': guest, 'onboarded': onboarded},
         if (includeAccount) 'notes': notes.map((e) => e.toJson()).toList(),
-        'prefs': {'dark': darkTheme, 'haptics': haptics, 'notif': notifOn, 'quiet': quietOn, 'morningHour': morningHour},
+        'prefs': {'dark': darkTheme, 'haptics': haptics, 'notif': notifOn, 'quiet': quietOn, 'morningHour': morningHour, 'quietFrom': quietFrom, 'quietTo': quietTo},
         'game': {
           'xp': xp,
           'doneToday': doneToday,
@@ -560,6 +586,8 @@ class AppStore extends ChangeNotifier {
     notifOn = p['notif'] != false;
     quietOn = p['quiet'] != false;
     morningHour = (p['morningHour'] as num?)?.toInt() ?? 9;
+    quietFrom = (p['quietFrom'] as num?)?.toInt() ?? 23;
+    quietTo = (p['quietTo'] as num?)?.toInt() ?? 7;
   }
 
   void _gameFrom(Map g) {

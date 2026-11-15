@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../data/models.dart';
+import '../data/store.dart';
 import '../theme/tokens.dart';
 import '../widgets/common.dart';
 import '../widgets/icons.dart';
@@ -9,6 +10,7 @@ import '../widgets/item_tile.dart';
 import '../widgets/kit.dart';
 import 'save_sheet.dart';
 import 'saved_screen.dart';
+import '../services/haptics.dart';
 
 const _palette = [
   (Color(0xFF2D4FD6), Color(0xFF5C7DFF)),
@@ -43,7 +45,7 @@ class _FoldersScreenState extends State<FoldersScreen> {
           padding: EdgeInsets.only(bottom: 130 + bottom),
           physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
           children: [
-            PageHead(title: 'Folders', right: Circ(icon: 'plus', label: 'New folder', onTap: _new)),
+            const PageHead(title: 'Folders'),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 30, 20, 0),
               child: GridView.builder(
@@ -270,7 +272,8 @@ class _FolderDetailState extends State<FolderDetail> {
       return;
     }
     await s.app.sync.share(f);
-    await shareInvite(s, f);
+    if (!mounted) return;
+    await inviteSheet(context, f);
   }
 
   Future<void> _more() async {
@@ -389,43 +392,47 @@ class _FolderDetailState extends State<FolderDetail> {
                   ]),
                 ),
                 const SizedBox(height: 16),
-                if (its.isEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 22),
-                    decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(28), boxShadow: ll.shadow),
-                    child: Text('Empty for now. Tap + to add something.', textAlign: TextAlign.center, style: t(14, FontWeight.w600, ll.ink3)),
-                  )
-                else
-                  Card28(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-                    children: [
-                      for (final it in its)
-                        ItemTile(
-                          key: ValueKey(it.id),
-                          item: it,
-                          inFolder: true,
-                          first: true,
-                          open: _open == it.id,
-                          onToggle: () => setState(() => _open = _open == it.id ? null : it.id),
-                        ),
-                    ],
+                if (f.collab)
+                  _Chat(folder: f, items: st.inFolder(f.name).where((i) => !i.isDone || i.extra['msg'] == true).toList()..sort((a, b) => a.savedAt.compareTo(b.savedAt)))
+                else ...[
+                  if (its.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 22),
+                      decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(28)),
+                      child: Text('Empty for now. Tap + to add something.', textAlign: TextAlign.center, style: t(14, FontWeight.w600, ll.ink3)),
+                    )
+                  else
+                    Card28(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                      children: [
+                        for (final it in its)
+                          ItemTile(
+                            key: ValueKey(it.id),
+                            item: it,
+                            inFolder: true,
+                            first: true,
+                            open: _open == it.id,
+                            onToggle: () => setState(() => _open = _open == it.id ? null : it.id),
+                          ),
+                      ],
+                    ),
+                  const SizedBox(height: 14),
+                  Tap(
+                    onTap: () {
+                      Haptics.light();
+                      s.app.openSave(folder: f.name);
+                    },
+                    child: Container(
+                      height: 52,
+                      decoration: BoxDecoration(borderRadius: BorderRadius.circular(99), border: Border.all(color: ll.inkMix(.15), width: 1.5)),
+                      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        LLIcon('plus', size: 18, color: ll.ink2),
+                        const SizedBox(width: 8),
+                        Text('Add to ${shortText(f.name, 16)}', style: t(14.5, FontWeight.w800, ll.ink2)),
+                      ]),
+                    ),
                   ),
-                const SizedBox(height: 14),
-                Tap(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    s.app.openSave(folder: f.name);
-                  },
-                  child: Container(
-                    height: 52,
-                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(99), border: Border.all(color: ll.inkMix(.15), width: 1.5)),
-                    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      LLIcon('plus', size: 18, color: ll.ink2),
-                      const SizedBox(width: 8),
-                      Text('Add to ${shortText(f.name, 16)}', style: t(14.5, FontWeight.w800, ll.ink2)),
-                    ]),
-                  ),
-                ),
+                ],
               ]),
             ),
           ],
@@ -433,4 +440,262 @@ class _FolderDetailState extends State<FolderDetail> {
       },
     );
   }
+}
+
+// =============================================================================
+// Shared folder as a chat: your saves on the right, friends' on the left.
+
+class _Chat extends StatefulWidget {
+  const _Chat({required this.folder, required this.items});
+  final Folder folder;
+  final List<Item> items;
+  @override
+  State<_Chat> createState() => _ChatState();
+}
+
+class _ChatState extends State<_Chat> {
+  final _c = TextEditingController();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  bool _mine(AppStore st, Item it) {
+    final e = '${it.extra['senderEmail'] ?? ''}';
+    if (e.isNotEmpty) return e == st.userEmail;
+    return widget.folder.ownerEmail.isEmpty || widget.folder.ownerEmail == st.userEmail;
+  }
+
+  void _send() {
+    final s = AppScope.of(context);
+    final st = s.store;
+    final txt = _c.text.trim();
+    if (txt.isEmpty) return;
+    final url = extractUrl(txt);
+    final info = url == null ? null : parseLink(url);
+    final note = url == null ? '' : txt.replaceAll(url, '').trim();
+    final it = Item(
+      id: newId(),
+      kind: info != null ? ItemKind.link : ItemKind.reminder,
+      title: info?.title ?? txt,
+      folder: widget.folder.name,
+      url: info?.url ?? '',
+      note: note,
+      extra: {'senderEmail': st.userEmail, 'senderName': st.userName, if (info == null) 'msg': true},
+    );
+    st.addItem(it);
+    _c.clear();
+    Haptics.light();
+    if (info != null) {
+      fetchTitle(info).then((tt) {
+        if (tt != null && tt.isNotEmpty) {
+          it.title = tt;
+          st.touchItem(it);
+        }
+      });
+    }
+  }
+
+  Future<void> _actions(Item it) async {
+    final s = AppScope.of(context);
+    final st = s.store;
+    Haptics.tick();
+    final a = await showLLSheet<String>(context, builder: (ctx) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          SheetTitle(shortText(it.title, 40)),
+          if (it.url.isNotEmpty) SetRow(icon: 'arrow', title: 'Open', onTap: () => Navigator.pop(ctx, 'open')),
+          if (it.extra['msg'] != true) SetRow(icon: 'check', title: 'Mark done', onTap: () => Navigator.pop(ctx, 'done')),
+          if (it.extra['msg'] != true) SetRow(icon: 'clock', title: 'Remind me', onTap: () => Navigator.pop(ctx, 'remind')),
+          SetRow(icon: 'trash', title: 'Delete', danger: true, onTap: () => Navigator.pop(ctx, 'del')),
+        ]));
+    if (!mounted || a == null) return;
+    switch (a) {
+      case 'open':
+        await openItemUrl(s, it);
+      case 'done':
+        st.complete(it.id);
+        s.app.gain(15);
+        s.toast.show('Done, +15 stars');
+      case 'remind':
+        final d = await pickLater(context);
+        if (d != null) {
+          st.setWhen(it.id, d);
+          s.toast.show('Reminder set, ${dayLow(d)} ${fmtT(d)}');
+        }
+      case 'del':
+        final undo = st.deleteItem(it.id);
+        s.toast.show('Deleted', undo: undo);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ll = LL.of(context);
+    final st = AppScope.of(context).store;
+    final its = widget.items;
+    String? lastDay;
+    final rows = <Widget>[];
+    for (final it in its) {
+      final d = DateTime.fromMillisecondsSinceEpoch(it.savedAt);
+      final day = fmtDay(d);
+      if (day != lastDay) {
+        lastDay = day;
+        rows.add(Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Center(child: Text(day, style: t(12, FontWeight.w700, ll.ink3))),
+        ));
+      }
+      rows.add(_bubble(ll, st, it, _mine(st, it), d));
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      if (its.isEmpty)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 24),
+          child: Text('Nothing here yet. Send a link or a message below.', textAlign: TextAlign.center, style: t(14, FontWeight.w600, ll.ink3)),
+        ),
+      ...rows,
+      const SizedBox(height: 12),
+      Container(
+        padding: const EdgeInsets.fromLTRB(16, 6, 6, 6),
+        decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(26), border: Border.all(color: ll.line)),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 12, top: 12),
+              child: TextField(
+                controller: _c,
+                minLines: 1,
+                maxLines: 4,
+                maxLength: 500,
+                textInputAction: TextInputAction.newline,
+                style: t(15, FontWeight.w600, ll.ink),
+                decoration: InputDecoration(isCollapsed: true, border: InputBorder.none, counterText: '', hintText: 'Send a link or message', hintStyle: t(15, FontWeight.w500, ll.ink3)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Tap(
+            onTap: _send,
+            semanticLabel: 'Send',
+            child: Container(
+              width: 44,
+              height: 44,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: ll.blue, shape: BoxShape.circle),
+              child: const LLIcon('right', size: 20, color: Colors.white, stroke: 2.2),
+            ),
+          ),
+        ]),
+      ),
+    ]);
+  }
+
+  Widget _bubble(LL ll, AppStore st, Item it, bool mine, DateTime d) {
+    final name = mine ? 'You' : '${it.extra['senderName'] ?? ''}'.isNotEmpty ? '${it.extra['senderName']}' : '${it.extra['senderEmail'] ?? 'Friend'}'.split('@').first;
+    final msg = it.extra['msg'] == true;
+    final fg = mine ? Colors.white : ll.ink;
+    final sub = mine ? Colors.white.withValues(alpha: .72) : ll.ink3;
+    final body = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+      if (!mine) Padding(padding: const EdgeInsets.only(bottom: 3), child: Text(name, style: t(12, FontWeight.w800, ll.blueInk))),
+      if (!msg && it.url.isNotEmpty)
+        Container(
+          margin: const EdgeInsets.only(bottom: 6),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: mine ? Colors.white.withValues(alpha: .14) : ll.surface2, borderRadius: BorderRadius.circular(14)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            LLIcon('link', size: 16, color: sub),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(it.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: t(14, FontWeight.w800, fg, h: 1.3)),
+                Text(it.domain, style: t(11.5, FontWeight.w600, sub)),
+              ]),
+            ),
+          ]),
+        )
+      else
+        Text(it.title, style: t(14.5, FontWeight.w600, fg, h: 1.4)),
+      if (it.note.isNotEmpty) Text(it.note, style: t(14, FontWeight.w500, fg, h: 1.4)),
+      const SizedBox(height: 3),
+      Text(
+        '${fmtT(d)}${it.isDone ? ' · done' : it.whenTs > 0 ? ' · reminder ${fmtDue(DateTime.fromMillisecondsSinceEpoch(it.whenTs))}' : ''}',
+        style: t(11, FontWeight.w600, sub),
+      ),
+    ]);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(mainAxisAlignment: mine ? MainAxisAlignment.end : MainAxisAlignment.start, crossAxisAlignment: CrossAxisAlignment.end, children: [
+        if (!mine) ...[
+          Container(
+            width: 28,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF5A6FA8)),
+            child: Text(initials(name), style: t(12, FontWeight.w800, Colors.white)),
+          ),
+          const SizedBox(width: 8),
+        ],
+        Flexible(
+          child: GestureDetector(
+            onTap: () => it.url.isNotEmpty ? openItemUrl(AppScope.of(context), it) : _actions(it),
+            onLongPress: () => _actions(it),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * .74),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(13, 9, 13, 8),
+                decoration: BoxDecoration(
+                  color: mine ? ll.blue : ll.surface,
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(20),
+                    topRight: const Radius.circular(20),
+                    bottomLeft: Radius.circular(mine ? 20 : 6),
+                    bottomRight: Radius.circular(mine ? 6 : 20),
+                  ),
+                ),
+                child: body,
+              ),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Invite with your own message, sent through any app.
+Future<void> inviteSheet(BuildContext context, Folder f) async {
+  final s = AppScope.of(context);
+  final c = TextEditingController(text: 'Hey! Join my “${f.name}” folder on Little Later so we can save things together.');
+  final send = await showLLSheet<bool>(context, builder: (ctx) {
+    final ll = LL.of(ctx);
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      SheetTitle('Invite to ${f.name}'),
+      Text('Your message', style: t(13, FontWeight.w700, ll.ink3)),
+      const SizedBox(height: 8),
+      Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: ll.surface2, borderRadius: BorderRadius.circular(20)),
+        child: TextField(
+          controller: c,
+          minLines: 3,
+          maxLines: 6,
+          maxLength: 300,
+          style: t(15, FontWeight.w600, ll.ink, h: 1.4),
+          decoration: const InputDecoration(isCollapsed: true, border: InputBorder.none, counterText: ''),
+        ),
+      ),
+      const SizedBox(height: 8),
+      Text('The invite link is added after your message.', style: t(12.5, FontWeight.w600, ll.ink3)),
+      const SizedBox(height: 18),
+      BigButton(label: 'Send invite', onTap: () => Navigator.pop(ctx, true)),
+    ]);
+  });
+  if (send != true) return;
+  final link = inviteLink(s.store, f);
+  await Clipboard.setData(ClipboardData(text: link));
+  try {
+    await shareText('${c.text.trim()}\n$link');
+  } catch (_) {}
+  s.toast.show('Invite link copied too');
 }

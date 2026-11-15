@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -14,6 +13,7 @@ import '../mascot/mascot_svg.dart';
 import '../mascot/mascot_view.dart';
 import '../theme/tokens.dart';
 import 'icons.dart';
+import '../services/haptics.dart';
 
 // ---------------------------------------------------------------------------
 // App scope: shared services every screen reaches for.
@@ -93,14 +93,14 @@ class AppScope extends InheritedWidget {
   static AppScope of(BuildContext c) => c.dependOnInheritedWidgetOfExactType<AppScope>()!;
 
   void buzz([int strength = 1]) {
-    if (!store.haptics) return;
+    Haptics.enabled = store.haptics;
     switch (strength) {
       case 0:
-        HapticFeedback.selectionClick();
+        Haptics.tick();
       case 1:
-        HapticFeedback.lightImpact();
+        Haptics.light();
       default:
-        HapticFeedback.mediumImpact();
+        Haptics.medium();
     }
   }
 
@@ -112,6 +112,7 @@ class AppScope extends InheritedWidget {
 // Formatting (v7 fmtT / fmtDay)
 
 const _dow = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const _mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 String fmtT(DateTime d) {
   final h = d.hour, m = d.minute;
@@ -125,6 +126,7 @@ String fmtDay(DateTime d) {
   final diff = dd.difference(today).inDays;
   if (diff == 0) return 'Today';
   if (diff == 1) return 'Tomorrow';
+  if (diff > 6 || diff < -6) return '${_dow[d.weekday - 1]} ${d.day} ${_mon[d.month - 1]}';
   return '${_dow[d.weekday - 1]} ${d.day}';
 }
 

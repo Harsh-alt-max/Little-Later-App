@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../config.dart';
 import '../data/models.dart';
+import '../data/titles.dart';
 import '../data/store.dart';
 import '../mascot/mascot_svg.dart';
 import '../mascot/mascot_view.dart';
@@ -14,6 +15,7 @@ import '../theme/tokens.dart';
 import '../widgets/common.dart';
 import '../widgets/icons.dart';
 import '../widgets/kit.dart';
+import '../services/haptics.dart';
 
 // =============================================================================
 // Link understanding (v7 KIND/parse) + real page titles
@@ -62,7 +64,10 @@ Future<String?> fetchTitle(LinkInfo info) async {
   try {
     if (RegExp('youtube|youtu.be').hasMatch(info.domain)) {
       final r = await http.get(Uri.parse('https://www.youtube.com/oembed?format=json&url=${Uri.encodeComponent(info.url)}')).timeout(const Duration(seconds: 5));
-      if (r.statusCode == 200) return (jsonDecode(r.body) as Map)['title'] as String?;
+      if (r.statusCode == 200) {
+        final tt = (jsonDecode(r.body) as Map)['title'] as String?;
+        return tt == null ? null : cleanTitle(tt);
+      }
     }
     final r = await http.get(Uri.parse(info.url), headers: {'User-Agent': 'Mozilla/5.0 (Linux; Android 14) LittleLater/1.4'}).timeout(const Duration(seconds: 5));
     if (r.statusCode != 200) return null;
@@ -71,20 +76,11 @@ Future<String?> fetchTitle(LinkInfo info) async {
         RegExp(r'''<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title''', caseSensitive: false).firstMatch(body)?.group(1);
     final tt = og ?? RegExp(r'<title[^>]*>([^<]{2,200})</title>', caseSensitive: false).firstMatch(body)?.group(1);
     if (tt == null) return null;
-    return _unescape(tt.trim());
+    return cleanTitle(tt);
   } catch (_) {
     return null;
   }
 }
-
-String _unescape(String s) => s
-    .replaceAll('&amp;', '&')
-    .replaceAll('&quot;', '"')
-    .replaceAll('&#39;', "'")
-    .replaceAll('&#x27;', "'")
-    .replaceAll('&lt;', '<')
-    .replaceAll('&gt;', '>')
-    .replaceAll(RegExp(r'\s+'), ' ');
 
 /// Folder suggestion for a link kind ('hobby', 'work', …) among the user's folders.
 Folder? suggestFolder(AppStore s, String? kind) {
@@ -96,43 +92,100 @@ Folder? suggestFolder(AppStore s, String? kind) {
 }
 
 // =============================================================================
-// When options (v7 WHEN)
+// When: Today / Tomorrow / a date (up to 3 months), always with a time you pick.
 
-enum When { hour, tonight, today, tomorrow, custom, none }
+enum When { today, tomorrow, date, none }
 
-DateTime _at(int dayOff, int h, [int m = 0]) {
+/// Next sensible time today: about an hour from now, on a 5-minute step.
+DateTime defaultWhen(When k) {
   final n = AppStore.now();
-  return DateTime(n.year, n.month, n.day + dayOff, h, m);
+  if (k == When.tomorrow) return DateTime(n.year, n.month, n.day + 1, 9);
+  final d = n.add(const Duration(hours: 1));
+  final r = DateTime(d.year, d.month, d.day, d.hour, ((d.minute + 4) ~/ 5) * 5);
+  if (k == When.today && r.day != n.day) return DateTime(n.year, n.month, n.day, 23, 55);
+  return r;
 }
 
-DateTime? whenDate(When w, AppStore s, DateTime? custom) {
-  final n = AppStore.now();
-  switch (w) {
-    case When.hour:
-      final d = n.add(const Duration(hours: 1));
-      final m = ((d.minute + 4) ~/ 5) * 5;
-      return DateTime(d.year, d.month, d.day, d.hour).add(Duration(minutes: m));
-    case When.tonight:
-      return _at(n.hour >= 20 ? 1 : 0, 20);
-    case When.today:
-      return _at(n.hour >= 18 ? 1 : 0, 18);
-    case When.tomorrow:
-      return _at(1, s.morningHour);
-    case When.custom:
-      return custom;
-    case When.none:
-      return null;
+When whenKindOf(DateTime d) {
+  final x = fmtDay(d);
+  return x == 'Today' ? When.today : x == 'Tomorrow' ? When.tomorrow : When.date;
+}
+
+class WhenChoice {
+  const WhenChoice(this.kind, this.at);
+  const WhenChoice.none() : kind = When.none, at = null;
+  final When kind;
+  final DateTime? at;
+}
+
+/// 2x2 tiles: Today, Tomorrow, Pick date, No reminder. Tapping a day opens the
+/// time wheels for that day.
+class WhenTiles extends StatelessWidget {
+  const WhenTiles({super.key, required this.value, required this.onChanged, this.noneLabel = 'No reminder', this.compact = false});
+  final WhenChoice value;
+  final ValueChanged<WhenChoice> onChanged;
+  final String noneLabel;
+  final bool compact;
+
+  Future<void> _tap(BuildContext context, When k) async {
+    Haptics.tick();
+    if (k == When.none) {
+      onChanged(const WhenChoice.none());
+      return;
+    }
+    final init = value.kind == k && value.at != null ? value.at! : (k == When.date ? defaultWhen(When.tomorrow).add(const Duration(days: 1)) : defaultWhen(k));
+    final d = await pickTime(context, initial: init, lockDay: k == When.today ? 0 : k == When.tomorrow ? 1 : null, title: k == When.today ? 'Today at…' : k == When.tomorrow ? 'Tomorrow at…' : 'Pick a day and time');
+    if (d != null) onChanged(WhenChoice(whenKindOf(d), d));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ll = LL.of(context);
+    Widget tile(When k, String label, String icon) {
+      final on = value.kind == k;
+      final at = on ? value.at : null;
+      final sub = switch (k) {
+        When.none => 'Just keep it',
+        When.date => at != null ? '${fmtDay(at)}, ${fmtT(at)}' : 'Up to 3 months',
+        _ => at != null ? fmtT(at) : 'Pick a time',
+      };
+      return Tap(
+        onTap: () => _tap(context, k),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          padding: EdgeInsets.all(compact ? 8 : 10),
+          decoration: BoxDecoration(color: on ? ll.blue : ll.surface2, borderRadius: BorderRadius.circular(compact ? 18 : 22)),
+          child: Row(children: [
+            Container(
+              width: compact ? 34 : 40,
+              height: compact ? 34 : 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: on ? Colors.white.withValues(alpha: .2) : ll.surface),
+              child: LLIcon(icon, size: compact ? 16 : 19, color: on ? Colors.white : ll.ink2),
+            ),
+            SizedBox(width: compact ? 9 : 11),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: t(compact ? 13.5 : 14.5, FontWeight.w800, on ? Colors.white : ll.ink)),
+                Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: t(12, FontWeight.w600, on ? Colors.white.withValues(alpha: .8) : ll.ink3)),
+              ]),
+            ),
+          ]),
+        ),
+      );
+    }
+
+    final gap = compact ? 8.0 : 10.0;
+    return Column(children: [
+      Row(children: [Expanded(child: tile(When.today, 'Today', 'sun')), SizedBox(width: gap), Expanded(child: tile(When.tomorrow, 'Tomorrow', 'sunrise'))]),
+      SizedBox(height: gap),
+      Row(children: [Expanded(child: tile(When.date, 'Pick date', 'clock')), SizedBox(width: gap), Expanded(child: tile(When.none, noneLabel, 'off'))]),
+    ]);
   }
 }
 
-const _whenMeta = {
-  When.hour: ('In 1 hour', 'clock'),
-  When.tonight: ('Tonight', 'moon'),
-  When.today: ('Later today', 'sun'),
-  When.tomorrow: ('Tomorrow', 'sunrise'),
-  When.custom: ('Pick time', 'clock'),
-  When.none: ('No reminder', 'off'),
-};
+/// "Later": choose a new day and time for an item.
+Future<DateTime?> pickLater(BuildContext context, {DateTime? initial}) => pickTime(context, initial: initial ?? defaultWhen(When.today), title: 'Later, when?');
 
 String fmtDue(DateTime d) => '${fmtDay(d)}, ${fmtT(d)}';
 String dayLow(DateTime d) {
@@ -171,10 +224,11 @@ class _SaveSheetState extends State<_SaveSheet> {
   final _rem = TextEditingController();
   final _todo = TextEditingController();
   final _step = TextEditingController();
+  final _note = TextEditingController();
+  bool _noteOpen = false;
   final _remF = FocusNode(), _todoF = FocusNode(), _stepF = FocusNode();
   SaveMode _mode = SaveMode.link;
-  When _when = When.tomorrow;
-  DateTime? _custom;
+  WhenChoice _when = WhenChoice(When.today, defaultWhen(When.today));
   final List<String> _steps = [];
   String _folder = '';
   bool _suggested = false;
@@ -186,9 +240,9 @@ class _SaveSheetState extends State<_SaveSheet> {
   AppScope get s => AppScope.of(context);
 
   static const _modes = {
-    SaveMode.link: ('Got a link for me?', 'Save link', 'Remind me', [When.tonight, When.tomorrow, When.custom, When.none]),
-    SaveMode.reminder: ('What should I remind you about?', 'Set reminder', 'When', [When.hour, When.tonight, When.tomorrow, When.custom]),
-    SaveMode.todo: ('What’s on the list?', 'Add to-do', 'Due', [When.today, When.tomorrow, When.custom, When.none]),
+    SaveMode.link: ('Got a link for me?', 'Save link', 'Remind me'),
+    SaveMode.reminder: ('What should I remind you about?', 'Set reminder', 'When'),
+    SaveMode.todo: ('What’s on the list?', 'Add to-do', 'Due'),
   };
 
   @override
@@ -219,7 +273,7 @@ class _SaveSheetState extends State<_SaveSheet> {
     _debounce?.cancel();
     _m.dispose();
     _bubble.dispose();
-    for (final c in [_link, _rem, _todo, _step]) {
+    for (final c in [_link, _rem, _todo, _step, _note]) {
       c.dispose();
     }
     for (final f in [_remF, _todoF, _stepF]) {
@@ -233,8 +287,7 @@ class _SaveSheetState extends State<_SaveSheet> {
     s.buzz(0);
     setState(() {
       _mode = m;
-      final ws = _modes[m]!.$4;
-      if (!ws.contains(_when)) _when = ws.contains(When.tomorrow) ? When.tomorrow : ws.first;
+      if (m == SaveMode.reminder && _when.kind == When.none) _when = WhenChoice(When.today, defaultWhen(When.today));
     });
     _m.play(MascotAct.nod);
     _bubble.say(_modes[m]!.$1, 0);
@@ -295,7 +348,7 @@ class _SaveSheetState extends State<_SaveSheet> {
   }
 
   bool get _valid {
-    if (_when == When.custom && _custom == null) return false;
+    if (_mode == SaveMode.reminder && _when.at == null) return false;
     return switch (_mode) {
       SaveMode.link => _info != null,
       SaveMode.reminder => _rem.text.trim().length > 1,
@@ -303,27 +356,14 @@ class _SaveSheetState extends State<_SaveSheet> {
     };
   }
 
-  Future<void> _pickWhen(When w) async {
-    s.buzz(0);
-    if (w == When.custom) {
-      final d = await pickTime(context, initial: _custom ?? whenDate(When.tomorrow, s.store, null)!);
-      if (d == null || !mounted) return;
-      setState(() {
-        _custom = d;
-        _when = When.custom;
-      });
-      _m.play(MascotAct.nod);
-      _bubble.say('${fmtDay(d)}, ${fmtT(d)}. Got it.', 0);
-      return;
-    }
+  void _setWhen(WhenChoice w) {
     setState(() => _when = w);
-    if (w == When.none) {
+    if (w.at == null) {
       _m.mood(Mood.sleep, const Duration(milliseconds: 1100));
       _bubble.say(_mode == SaveMode.todo ? 'Whenever works.' : 'I’ll keep it quietly.', 0);
     } else {
-      final d = whenDate(w, s.store, null)!;
       _m.play(MascotAct.nod);
-      _bubble.say('${fmtDay(d)}, ${fmtT(d)}. Got it.', 0);
+      _bubble.say('${fmtDay(w.at!)}, ${fmtT(w.at!)}. Got it.', 0);
     }
   }
 
@@ -353,17 +393,17 @@ class _SaveSheetState extends State<_SaveSheet> {
   Future<void> _save() async {
     if (!_valid) return;
     final st = s.store;
-    final d = whenDate(_when, st, _custom);
+    final d = _when.at;
     final id = newId();
     late Item it;
     late String msg;
     switch (_mode) {
       case SaveMode.link:
         final info = _info!;
-        it = Item(id: id, kind: ItemKind.link, title: info.title, folder: _folder, url: info.url, reminder: d?.millisecondsSinceEpoch ?? 0);
+        it = Item(id: id, kind: ItemKind.link, title: info.title, folder: _folder, url: info.url, reminder: d?.millisecondsSinceEpoch ?? 0, note: _note.text.trim());
         msg = 'Saved!';
       case SaveMode.reminder:
-        it = Item(id: id, kind: ItemKind.reminder, title: _rem.text.trim(), folder: _folder, reminder: d?.millisecondsSinceEpoch ?? 0);
+        it = Item(id: id, kind: ItemKind.reminder, title: _rem.text.trim(), folder: _folder, reminder: d?.millisecondsSinceEpoch ?? 0, note: _note.text.trim());
         msg = 'I’ll remind you!';
       case SaveMode.todo:
         if (_step.text.trim().isNotEmpty) _steps.add(_step.text.trim());
@@ -381,6 +421,8 @@ class _SaveSheetState extends State<_SaveSheet> {
     _m.play(MascotAct.hop);
     _m.mood(Mood.happy);
     _bubble.say(msg, 0);
+    if (st.userEmail.isNotEmpty) it.extra['senderEmail'] = st.userEmail;
+    if (st.userName.isNotEmpty) it.extra['senderName'] = st.userName;
     st.addItem(it);
     if (d != null) s.app.reminders.askPermission();
     final scope = s;
@@ -470,6 +512,30 @@ class _SaveSheetState extends State<_SaveSheet> {
                     transitionBuilder: (c, a) => FadeTransition(opacity: a, child: SlideTransition(position: Tween(begin: const Offset(0, .1), end: Offset.zero).animate(a), child: c)),
                     child: KeyedSubtree(key: ValueKey(_mode), child: _fields(ll)),
                   ),
+                  if (_mode != SaveMode.todo)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: AnimatedSize(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Motion.smooth,
+                        child: _noteOpen
+                            ? LLInput(controller: _note, hint: 'Add a note (ingredients, why you saved it…)', icon: 'pen', height: 54, autofocus: true, maxLength: 200)
+                            : Align(
+                                alignment: Alignment.centerLeft,
+                                child: Tap(
+                                  onTap: () => setState(() => _noteOpen = true),
+                                  child: Padding(
+                                    padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
+                                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                      LLIcon('plus', size: 16, color: ll.blueInk),
+                                      const SizedBox(width: 6),
+                                      Text('Add a note', style: t(14, FontWeight.w800, ll.blueInk)),
+                                    ]),
+                                  ),
+                                ),
+                              ),
+                      ),
+                    ),
                   Lab('Folder', hint: _suggested ? 'Suggested' : ''),
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
@@ -495,7 +561,7 @@ class _SaveSheetState extends State<_SaveSheet> {
                     ]),
                   ),
                   Lab(mode.$3),
-                  _whens(ll, mode.$4),
+                  WhenTiles(value: _when, onChanged: _setWhen, noneLabel: _mode == SaveMode.todo ? 'No date' : 'No reminder'),
                   const SizedBox(height: 22),
                   BigButton(label: mode.$2, xp: 5, enabled: _valid, onTap: _save),
                 ],
@@ -585,55 +651,6 @@ class _SaveSheetState extends State<_SaveSheet> {
     }
   }
 
-  Widget _whens(LL ll, List<When> ws) {
-    final st = s.store;
-    Widget tile(When k) {
-      final on = _when == k;
-      final meta = _whenMeta[k]!;
-      String sub;
-      if (k == When.custom) {
-        sub = _custom != null ? fmtDue(_custom!) : 'Day and time';
-      } else if (k == When.none) {
-        sub = _mode == SaveMode.todo ? 'Whenever' : 'Just keep it';
-      } else {
-        final d = whenDate(k, st, null)!;
-        final today = fmtDay(d) == 'Today';
-        sub = (today || k == When.tomorrow ? '' : '${fmtDay(d)}, ') + fmtT(d);
-      }
-      final label = k == When.none && _mode == SaveMode.todo ? 'No date' : meta.$1;
-      return Tap(
-        onTap: () => _pickWhen(k),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: on ? ll.blue : ll.surface2, borderRadius: BorderRadius.circular(22), boxShadow: on ? ll.blueGlow(.3) : null),
-          child: Row(children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              width: 40,
-              height: 40,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: on ? Colors.white.withValues(alpha: .22) : ll.surface),
-              child: LLIcon(meta.$2, size: 19, color: on ? Colors.white : ll.ink2),
-            ),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: t(14.5, FontWeight.w800, on ? Colors.white : ll.ink)),
-                Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: t(12.5, FontWeight.w600, on ? Colors.white.withValues(alpha: .78) : ll.ink3)),
-              ]),
-            ),
-          ]),
-        ),
-      );
-    }
-
-    return Column(children: [
-      Row(children: [Expanded(child: tile(ws[0])), const SizedBox(width: 10), Expanded(child: tile(ws[1]))]),
-      const SizedBox(height: 10),
-      Row(children: [Expanded(child: tile(ws[2])), const SizedBox(width: 10), Expanded(child: tile(ws[3]))]),
-    ]);
-  }
 }
 
 class _Floaty extends StatefulWidget {
@@ -715,13 +732,17 @@ class LinkPreview extends StatelessWidget {
 // =============================================================================
 // Time picker: 14-day strip + hour/minute/am-pm wheels
 
-Future<DateTime?> pickTime(BuildContext context, {required DateTime initial}) {
-  return showLLSheet<DateTime>(context, builder: (_) => _TimePicker(initial: initial));
+/// Day strip (next 3 months) + hour/minute/am-pm wheels. [lockDay] 0/1 hides
+/// the strip and fixes the day to today/tomorrow.
+Future<DateTime?> pickTime(BuildContext context, {required DateTime initial, int? lockDay, String title = 'Pick a time'}) {
+  return showLLSheet<DateTime>(context, builder: (_) => _TimePicker(initial: initial, lockDay: lockDay, title: title));
 }
 
 class _TimePicker extends StatefulWidget {
-  const _TimePicker({required this.initial});
+  const _TimePicker({required this.initial, this.lockDay, this.title = 'Pick a time'});
   final DateTime initial;
+  final int? lockDay;
+  final String title;
   @override
   State<_TimePicker> createState() => _TimePickerState();
 }
@@ -732,15 +753,17 @@ class _TimePickerState extends State<_TimePicker> {
   late final FixedExtentScrollController _h, _m, _a;
   final _strip = ScrollController();
   static const _dow = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  static const _mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
   @override
   void initState() {
     super.initState();
     final n = AppStore.now();
-    days = List.generate(14, (i) => DateTime(n.year, n.month, n.day + i));
+    days = List.generate(92, (i) => DateTime(n.year, n.month, n.day + i));
     final init = widget.initial;
     day = days.indexWhere((d) => d.year == init.year && d.month == init.month && d.day == init.day);
     if (day < 0) day = 1;
+    if (widget.lockDay != null) day = widget.lockDay!;
     hh = init.hour % 12 == 0 ? 12 : init.hour % 12;
     mm = ((init.minute / 5).round() * 5) % 60;
     ap = init.hour < 12 ? 0 : 1;
@@ -767,8 +790,8 @@ class _TimePickerState extends State<_TimePicker> {
   }
 
   void _reset() {
-    final d = whenDate(When.hour, AppScope.of(context).store, null)!;
-    setState(() => day = 0);
+    final d = defaultWhen(widget.lockDay == 1 ? When.tomorrow : When.today);
+    if (widget.lockDay == null) setState(() => day = 0);
     _h.animateToItem((d.hour % 12 == 0 ? 12 : d.hour % 12) - 1, duration: const Duration(milliseconds: 400), curve: Motion.smooth);
     _m.animateToItem(d.minute ~/ 5, duration: const Duration(milliseconds: 400), curve: Motion.smooth);
     _a.animateToItem(d.hour < 12 ? 0 : 1, duration: const Duration(milliseconds: 400), curve: Motion.smooth);
@@ -786,7 +809,7 @@ class _TimePickerState extends State<_TimePicker> {
         diameterRatio: 1.6,
         perspective: .003,
         onSelectedItemChanged: (i) {
-          HapticFeedback.selectionClick();
+          Haptics.tick();
           setState(() => on(i));
         },
         childDelegate: ListWheelChildBuilderDelegate(
@@ -808,8 +831,8 @@ class _TimePickerState extends State<_TimePicker> {
     final ll = LL.of(context);
     final bad = _sel.isBefore(AppStore.now());
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      SheetTitle('Pick a time', action: 'Reset', onAction: _reset),
-      SizedBox(
+      SheetTitle(widget.title, action: 'Reset', onAction: _reset),
+      if (widget.lockDay == null) SizedBox(
         height: 74,
         child: ListView.separated(
           controller: _strip,
@@ -822,7 +845,7 @@ class _TimePickerState extends State<_TimePicker> {
             final d = days[i];
             return Tap(
               onTap: () {
-                HapticFeedback.selectionClick();
+                Haptics.tick();
                 setState(() => day = i);
               },
               child: AnimatedContainer(
@@ -831,7 +854,7 @@ class _TimePickerState extends State<_TimePicker> {
                 height: 70,
                 decoration: BoxDecoration(color: on ? ll.blue : ll.surface2, borderRadius: BorderRadius.circular(20), boxShadow: on ? ll.blueGlow(.32, 22) : null),
                 child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Text(i == 0 ? 'Today' : i == 1 ? 'Tmrw' : _dow[d.weekday - 1], style: t(11.5, FontWeight.w800, on ? Colors.white70 : ll.ink3)),
+                  Text(i == 0 ? 'Today' : i == 1 ? 'Tmrw' : d.day == 1 ? _mon[d.month - 1] : _dow[d.weekday - 1], style: t(11.5, FontWeight.w800, on ? Colors.white70 : ll.ink3)),
                   const SizedBox(height: 3),
                   Text('${d.day}', style: t(20, FontWeight.w800, on ? Colors.white : ll.ink)),
                 ]),
@@ -909,7 +932,7 @@ class _NewFolderState extends State<_NewFolder> {
       await s.app.sync.share(f);
       if (!mounted) return;
       Navigator.pop(context, f);
-      await shareInvite(s, f);
+      s.toast.show('“${shortText(f.name)}” is shared. Open it to invite friends.');
     } else {
       Navigator.pop(context, f);
       s.toast.show('“${shortText(f.name)}” created');
@@ -934,7 +957,7 @@ class _NewFolderState extends State<_NewFolder> {
           for (final i in kFolderIcons)
             Tap(
               onTap: () {
-                HapticFeedback.selectionClick();
+                Haptics.tick();
                 setState(() => _icon = i);
               },
               child: AnimatedContainer(
@@ -986,7 +1009,8 @@ String inviteLink(AppStore st, Folder f) {
 Future<void> Function(String text) shareText = (_) async {};
 
 // =============================================================================
-// Quick save from another app's Share menu (v7 .qs)
+// Quick save from another app's Share menu (v7 .qs). Also used by the
+// standalone share window, so it takes an [onDone] instead of popping routes.
 
 Future<void> openQuickSaveSheet(BuildContext context, String text) {
   final scope = AppScope.of(context);
@@ -994,24 +1018,29 @@ Future<void> openQuickSaveSheet(BuildContext context, String text) {
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => scope.wrap(_QuickSave(text: text)),
+    builder: (ctx) => scope.wrap(QuickSave(text: text, onDone: () => Navigator.pop(ctx))),
   );
 }
 
-class _QuickSave extends StatefulWidget {
-  const _QuickSave({required this.text});
+class QuickSave extends StatefulWidget {
+  const QuickSave({super.key, required this.text, required this.onDone, this.onSaved});
   final String text;
+  final VoidCallback onDone;
+
+  /// Called after the item is stored (the share window uses it to sync, then close).
+  final Future<void> Function()? onSaved;
   @override
-  State<_QuickSave> createState() => _QuickSaveState();
+  State<QuickSave> createState() => _QuickSaveState();
 }
 
-class _QuickSaveState extends State<_QuickSave> {
+class _QuickSaveState extends State<QuickSave> {
   final _m = MascotController();
+  final _note = TextEditingController();
   LinkInfo? _info;
-  String _note = '';
+  String _plain = '';
   String _folder = '';
-  When _when = When.tonight;
-  DateTime? _custom;
+  WhenChoice _when = const WhenChoice.none();
+  bool _noteOpen = false;
   bool _done = false;
   bool _loading = false;
 
@@ -1020,7 +1049,7 @@ class _QuickSaveState extends State<_QuickSave> {
     super.initState();
     final url = extractUrl(widget.text);
     _info = url == null ? null : parseLink(url);
-    _note = widget.text.replaceAll(url ?? '\u0000', '').trim();
+    _plain = widget.text.replaceAll(url ?? '\u0000', '').trim();
     Timer(const Duration(milliseconds: 300), () {
       if (mounted) {
         _m.play(MascotAct.hop);
@@ -1051,14 +1080,21 @@ class _QuickSaveState extends State<_QuickSave> {
   @override
   void dispose() {
     _m.dispose();
+    _note.dispose();
     super.dispose();
   }
 
+  Future<void> _newFolder() async {
+    final f = await newFolderSheet(context);
+    if (f != null && mounted) setState(() => _folder = f.name);
+  }
+
   Future<void> _save() async {
+    if (_done) return;
     final s = AppScope.of(context);
     final st = s.store;
-    final d = whenDate(_when, st, _custom);
-    final title = _info?.title ?? (_note.length > 80 ? '${_note.substring(0, 78)}…' : _note);
+    final d = _when.at;
+    final title = _info?.title ?? cleanTitle(_plain);
     if (title.isEmpty) return;
     st.addItem(Item(
       id: newId(),
@@ -1066,17 +1102,19 @@ class _QuickSaveState extends State<_QuickSave> {
       title: title,
       folder: _folder,
       url: _info?.url ?? '',
-      note: _info != null && _note.isNotEmpty && _note != title ? _note : '',
+      note: _note.text.trim(),
       reminder: d?.millisecondsSinceEpoch ?? 0,
+      extra: {if (st.userEmail.isNotEmpty) 'senderEmail': st.userEmail, if (st.userName.isNotEmpty) 'senderName': st.userName},
     ));
+    st.gainXp(5);
     if (d != null) s.app.reminders.askPermission();
-    HapticFeedback.mediumImpact();
+    Haptics.medium();
     _m.play(MascotAct.hop);
+    _m.mood(Mood.happy);
+    FocusScope.of(context).unfocus();
     setState(() => _done = true);
-    await Future.delayed(const Duration(milliseconds: 1100));
-    if (!mounted) return;
-    Navigator.pop(context);
-    s.app.gain(5);
+    await Future.wait([Future.delayed(const Duration(milliseconds: 1100)), if (widget.onSaved != null) widget.onSaved!()]);
+    if (mounted) widget.onDone();
   }
 
   @override
@@ -1085,19 +1123,19 @@ class _QuickSaveState extends State<_QuickSave> {
     final s = AppScope.of(context);
     final st = s.store;
     final bottom = MediaQuery.paddingOf(context).bottom;
-    final d = whenDate(_when, st, _custom);
-    const chips = [(When.tonight, 'Tonight', 'moon'), (When.tomorrow, 'Tomorrow', 'sunrise'), (When.custom, 'Pick time', 'clock'), (When.none, 'No reminder', 'off')];
+    final kb = MediaQuery.viewInsetsOf(context).bottom;
+    final d = _when.at;
     return Padding(
-      padding: EdgeInsets.fromLTRB(10, 0, 10, 12 + bottom),
+      padding: EdgeInsets.fromLTRB(10, 0, 10, 12 + (kb > 0 ? kb : bottom)),
       child: Stack(clipBehavior: Clip.none, children: [
         Container(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-          decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(30), boxShadow: const [BoxShadow(color: Color(0x99000000), blurRadius: 70, offset: Offset(0, 30))]),
+          decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(30), boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 40, offset: Offset(0, 16))]),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Row(children: [
               const SizedBox(width: 58),
               Expanded(child: Text('Save to Little Later', style: t(16.5, FontWeight.w800, ll.ink))),
-              Circ(icon: 'x', size: 36, iconSize: 16, shadow: false, bg: ll.surface2, label: 'Cancel', onTap: () => Navigator.pop(context)),
+              Circ(icon: 'x', size: 36, iconSize: 16, shadow: false, bg: ll.surface2, label: 'Cancel', onTap: widget.onDone),
             ]),
             const SizedBox(height: 10),
             if (_info != null)
@@ -1106,54 +1144,45 @@ class _QuickSaveState extends State<_QuickSave> {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(color: ll.blueSoft, borderRadius: BorderRadius.circular(20)),
-                child: Text(_note, maxLines: 3, overflow: TextOverflow.ellipsis, style: t(14.5, FontWeight.w700, ll.ink)),
+                child: Text(_plain, maxLines: 3, overflow: TextOverflow.ellipsis, style: t(14.5, FontWeight.w700, ll.ink)),
               ),
-            const Lab('Folder', hint: 'Suggested', top: 14),
+            const SizedBox(height: 10),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 300),
+              curve: Motion.smooth,
+              child: _noteOpen
+                  ? LLInput(controller: _note, hint: 'Add a note (ingredients, why you saved it…)', icon: 'pen', height: 52, autofocus: true, maxLength: 200)
+                  : Align(
+                      alignment: Alignment.centerLeft,
+                      child: Tap(
+                        onTap: () => setState(() => _noteOpen = true),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            LLIcon('plus', size: 16, color: ll.blueInk),
+                            const SizedBox(width: 6),
+                            Text('Add a note', style: t(14, FontWeight.w800, ll.blueInk)),
+                          ]),
+                        ),
+                      ),
+                    ),
+            ),
+            const Lab('Folder', top: 14),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(children: [
                 for (final f in st.folders) ...[
-                  FolderPill(small: true, icon: f.iconKey, label: f.name, on: f.name == _folder, onTap: () => setState(() => _folder = f.name)),
+                  FolderPill(small: true, icon: f.iconKey, label: f.name, on: f.name == _folder, onTap: () {
+                    Haptics.tick();
+                    setState(() => _folder = f.name);
+                  }),
                   const SizedBox(width: 8),
                 ],
+                FolderPill(small: true, icon: 'plus', label: 'New', dashed: true, onTap: _newFolder),
               ]),
             ),
             const Lab('Remind me', top: 14),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(children: [
-                for (final c in chips) ...[
-                  Tap(
-                    onTap: () async {
-                      HapticFeedback.selectionClick();
-                      if (c.$1 == When.custom) {
-                        final p = await pickTime(context, initial: _custom ?? whenDate(When.tomorrow, st, null)!);
-                        if (p != null) {
-                          setState(() {
-                            _custom = p;
-                            _when = When.custom;
-                          });
-                        }
-                        return;
-                      }
-                      setState(() => _when = c.$1);
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      height: 42,
-                      padding: const EdgeInsets.symmetric(horizontal: 15),
-                      decoration: BoxDecoration(color: _when == c.$1 ? ll.blue : ll.surface2, borderRadius: BorderRadius.circular(99)),
-                      child: Row(children: [
-                        LLIcon(c.$3, size: 16, color: _when == c.$1 ? Colors.white : ll.ink2),
-                        const SizedBox(width: 6),
-                        Text(c.$1 == When.custom && _custom != null ? fmtDue(_custom!) : c.$2, style: t(13.5, FontWeight.w800, _when == c.$1 ? Colors.white : ll.ink2)),
-                      ]),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-              ]),
-            ),
+            WhenTiles(value: _when, compact: true, onChanged: (w) => setState(() => _when = w)),
             const SizedBox(height: 16),
             BigButton(label: 'Save', height: 54, onTap: _save),
           ]),
@@ -1174,8 +1203,14 @@ class _QuickSaveState extends State<_QuickSave> {
               child: Container(
                 decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(30)),
                 child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Container(width: 56, height: 56, decoration: BoxDecoration(shape: BoxShape.circle, color: ll.blue), child: const Center(child: LLIcon('check', size: 28, color: Colors.white, stroke: 2.6))),
-                  const SizedBox(height: 8),
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0, end: 1),
+                    duration: const Duration(milliseconds: 600),
+                    curve: Motion.spring,
+                    builder: (_, v, c) => Transform.scale(scale: v, child: c),
+                    child: Container(width: 56, height: 56, decoration: BoxDecoration(shape: BoxShape.circle, color: ll.blue), child: const Center(child: LLIcon('check', size: 28, color: Colors.white, stroke: 2.6))),
+                  ),
+                  const SizedBox(height: 10),
                   Text('Saved to ${_folder.isEmpty ? 'Little Later' : _folder}', style: t(17, FontWeight.w800, ll.ink)),
                   const SizedBox(height: 4),
                   Text(d != null ? '${st.mascotName} will bring it back ${dayLow(d)} at ${fmtT(d)}' : '${st.mascotName} is keeping it safe', style: t(13.5, FontWeight.w600, ll.ink2)),

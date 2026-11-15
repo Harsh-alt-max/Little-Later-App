@@ -68,16 +68,17 @@ class LL extends ThemeExtension<LL> {
     blue2: Color(0xFF7C9DFF),
     blueSoft: Color(0x264D7CFF),
     blueInk: Color(0xFFB6C8FF),
-    headA: Color(0x574D7CFF),
+    headA: Color(0x334D7CFF),
     headB: Color(0xFF04050A),
     glass: Color(0xB812151E),
     stripe: Color(0x0D8CA5FF),
-    shadow: [BoxShadow(color: Color(0x8C000000), blurRadius: 40, offset: Offset(0, 18))],
+    shadow: [BoxShadow(color: Color(0x40000000), blurRadius: 24, offset: Offset(0, 10))],
   );
 
   /// Shadow under blue buttons/tiles: 0 10px 24px rgba(61,107,245,.35)
+  /// Kept very soft on purpose: heavy glows look artificial.
   List<BoxShadow> blueGlow([double a = .35, double blur = 24, double y = 10]) =>
-      [BoxShadow(color: const Color(0xFF3D6BF5).withValues(alpha: a), blurRadius: blur, offset: Offset(0, y))];
+      [BoxShadow(color: const Color(0xFF3D6BF5).withValues(alpha: a * .35), blurRadius: blur * .6, offset: Offset(0, y * .5))];
 
   /// color-mix(in srgb, var(--ink) p%, transparent)
   Color inkMix(double p) => ink.withValues(alpha: p);

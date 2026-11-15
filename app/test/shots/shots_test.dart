@@ -112,6 +112,23 @@ void main() {
     await t.tap(find.text('“Slow-roasted tomato pasta” is due now'));
     await shot(t, '11_reminder');
   });
+  testWidgets('chat', (t) async {
+    final s = await boot(t);
+    s.userEmail = 'me@x.com';
+    s.guest = false;
+    final f = s.folderNamed('Love')!..collab = true;
+    f.extra.addAll({'collabId': 'cf_me_abc', 'ownerEmail': 'me@x.com', 'collaborators': [{'name': 'Riya', 'email': 'riya@x.com'}]});
+    s.byId('d2')!.extra.addAll({'senderEmail': 'riya@x.com', 'senderName': 'Riya'});
+    s.byId('d8')!.extra.addAll({'senderEmail': 'me@x.com'});
+    await tapSem(t, 'Folders');
+    await tapSem(t, RegExp('^Love'));
+    await shot(t, '15_chat');
+  });
+  testWidgets('later picker', (t) async {
+    await boot(t);
+    await t.tap(find.text('Later').first);
+    await shot(t, '16_later');
+  });
   testWidgets('onboarding', (t) async {
     await boot(t, demo: false);
     await shot(t, '12_onboarding');

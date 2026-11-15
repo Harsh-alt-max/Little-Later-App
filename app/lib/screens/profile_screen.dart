@@ -1,4 +1,3 @@
-import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -10,6 +9,7 @@ import '../widgets/common.dart';
 import '../widgets/icons.dart';
 import '../widgets/kit.dart';
 import 'saved_screen.dart';
+import '../services/haptics.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -28,7 +28,7 @@ class ProfileScreen extends StatelessWidget {
           padding: EdgeInsets.only(bottom: 130 + bottom),
           physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
           children: [
-            PageHead(right: Circ(icon: 'pen', label: 'Edit name', onTap: () => _editName(context))),
+            const PageHead(),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -41,29 +41,13 @@ class ProfileScreen extends StatelessWidget {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [ll.blue2, ll.blue]),
-                      boxShadow: [BoxShadow(color: ll.bg, spreadRadius: 5), BoxShadow(color: ll.blue.withValues(alpha: .5), spreadRadius: 7), ...ll.blueGlow(.3, 40, 18)],
+                      boxShadow: [BoxShadow(color: ll.bg, spreadRadius: 5), BoxShadow(color: ll.blue.withValues(alpha: .35), spreadRadius: 6)],
                     ),
                     child: Text(name[0].toUpperCase(), style: t(38, FontWeight.w800, Colors.white)),
                   ),
                 ),
                 const SizedBox(height: 16),
                 Text(name, textAlign: TextAlign.center, style: t(24, FontWeight.w800, ll.ink, ls: -.02)),
-                const SizedBox(height: 4),
-                Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(99), boxShadow: ll.shadow),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Container(
-                        width: 7,
-                        height: 7,
-                        decoration: BoxDecoration(shape: BoxShape.circle, color: st.signedIn ? const Color(0xFF43D18E) : ll.ink3, boxShadow: st.signedIn ? const [BoxShadow(color: Color(0xFF43D18E), blurRadius: 8)] : null),
-                      ),
-                      const SizedBox(width: 7),
-                      Text(st.signedIn ? st.userEmail : 'Guest, saved on this phone', style: t(12.5, FontWeight.w700, ll.ink2)),
-                    ]),
-                  ),
-                ),
                 if (!st.signedIn) ...[
                   const SizedBox(height: 16),
                   Tap(
@@ -153,30 +137,18 @@ class ProfileScreen extends StatelessWidget {
                     ),
                   ),
                   SetRow(
-                    icon: 'sunrise',
-                    title: 'Morning reminder',
-                    sub: 'When “Tomorrow” rings',
-                    value: fmtT(DateTime(2000, 1, 1, st.morningHour)),
-                    chev: true,
-                    onTap: () {
-                      const ts = [7, 8, 9, 10];
-                      final h = ts[(ts.indexOf(st.morningHour) + 1) % ts.length];
-                      st.setPrefs(morning: h);
-                      s.buzz(0);
-                      s.toast.show('“Tomorrow” now rings at ${fmtT(DateTime(2000, 1, 1, h))}');
-                    },
-                  ),
-                  SetRow(
                     icon: 'moon',
                     title: 'Quiet hours',
-                    sub: 'No pings 11 pm to 7 am',
+                    sub: '${fmtT(DateTime(2000, 1, 1, st.quietFrom))} to ${fmtT(DateTime(2000, 1, 1, st.quietTo))}',
+                    chev: true,
+                    onTap: () => _quietHours(context),
                     trailing: LLToggle(
                       on: st.quietOn,
                       label: 'Quiet hours',
                       onChanged: (v) {
                         s.buzz(0);
                         st.setPrefs(quiet: v);
-                        s.toast.show(v ? 'Quiet hours on, 11 pm to 7 am' : 'Quiet hours off');
+                        s.toast.show(v ? 'Quiet hours on' : 'Quiet hours off');
                       },
                     ),
                   ),
@@ -203,12 +175,25 @@ class ProfileScreen extends StatelessWidget {
                       label: 'Haptics',
                       onChanged: (v) {
                         st.setPrefs(haptic: v);
-                        if (v) HapticFeedback.mediumImpact();
+                        if (v) Haptics.medium();
                       },
                     ),
                   ),
-                  SetRow(icon: 'link', title: 'Chrome extension', sub: 'Save from your laptop', chev: true, onTap: () => _chrome(context)),
-                  SetRow(icon: 'book', title: 'Privacy and terms', chev: true, onTap: () => launchUrl(Uri.parse('$siteUrl/privacy.html'), mode: LaunchMode.externalApplication)),
+                  SetRow(
+                    icon: 'link',
+                    title: 'Chrome extension',
+                    sub: 'Save from your laptop',
+                    trailing: Tap(
+                      onTap: () => launchUrl(Uri.parse('$siteUrl/#chrome'), mode: LaunchMode.externalApplication),
+                      child: Container(
+                        height: 36,
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(color: ll.blue, borderRadius: BorderRadius.circular(99)),
+                        child: Text('Get it', style: t(13, FontWeight.w800, Colors.white)),
+                      ),
+                    ),
+                  ),
                 ]),
                 const SizedBox(height: 12),
                 Card28(children: [
@@ -263,51 +248,43 @@ class ProfileScreen extends StatelessWidget {
 
   Widget _lab(LL ll, String s) => Padding(padding: const EdgeInsets.fromLTRB(6, 24, 6, 10), child: Text(s, style: t(13, FontWeight.w700, ll.ink3)));
 
-  Future<void> _editName(BuildContext context) async {
+  Future<void> _quietHours(BuildContext context) async {
     final s = AppScope.of(context);
-    final c = TextEditingController(text: s.store.userName);
-    final n = await showLLSheet<String>(context, builder: (ctx) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          const SheetTitle('Your name'),
-          LLInput(controller: c, hint: 'Your name', icon: 'user', maxLength: 20, autofocus: true, onSubmitted: (v) => Navigator.pop(ctx, v)),
-          const SizedBox(height: 16),
-          BigButton(label: 'Save', onTap: () => Navigator.pop(ctx, c.text)),
-        ]));
-    if (n != null && n.trim().isNotEmpty) {
-      s.store.setPrefs(name: n);
-      s.toast.show('Name updated');
-    }
-  }
-
-  Future<void> _chrome(BuildContext context) async {
-    final s = AppScope.of(context);
-    await showLLSheet(context, builder: (ctx) {
+    final st = s.store;
+    var from = st.quietFrom, to = st.quietTo;
+    final ok = await showLLSheet<bool>(context, builder: (ctx) {
       final ll = LL.of(ctx);
-      Widget step(String n, String b, String sub) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 11),
-            child: Row(children: [
-              Container(width: 42, height: 42, alignment: Alignment.center, decoration: BoxDecoration(shape: BoxShape.circle, color: ll.blueSoft), child: Text(n, style: t(16, FontWeight.w800, ll.blueInk))),
-              const SizedBox(width: 13),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(b, style: t(15, FontWeight.w800, ll.ink)), Text(sub, style: t(13, FontWeight.w500, ll.ink2))])),
-            ]),
+      Widget wheel(int init, ValueChanged<int> on) => SizedBox(
+            width: 130,
+            height: 180,
+            child: ListWheelScrollView.useDelegate(
+              controller: FixedExtentScrollController(initialItem: init),
+              itemExtent: 42,
+              physics: const FixedExtentScrollPhysics(),
+              diameterRatio: 1.5,
+              onSelectedItemChanged: (i) {
+                Haptics.tick();
+                on(i);
+              },
+              childDelegate: ListWheelChildBuilderDelegate(childCount: 24, builder: (_, i) => Center(child: Text(fmtT(DateTime(2000, 1, 1, i)), style: t(19, FontWeight.w800, ll.ink)))),
+            ),
           );
       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        const SheetTitle('Chrome extension'),
-        Card28(children: [
-          step('1', 'Open the Little Later site on your laptop', 'harsh-alt-max.github.io/Little-Later-App'),
-          step('2', 'Add to Chrome', 'Sign in with the same account as here'),
-          step('3', 'Save from any tab', 'It shows up here instantly'),
+        const SheetTitle('Quiet hours'),
+        Text('No reminders ring in this window. They wait until it ends.', style: t(14, FontWeight.w500, ll.ink2, h: 1.4)),
+        const SizedBox(height: 16),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+          Column(children: [Text('From', style: t(13, FontWeight.w700, ll.ink3)), wheel(from, (v) => from = v)]),
+          Column(children: [Text('Until', style: t(13, FontWeight.w700, ll.ink3)), wheel(to, (v) => to = v)]),
         ]),
         const SizedBox(height: 16),
-        BigButton(
-          label: 'Copy link for laptop',
-          onTap: () {
-            Clipboard.setData(const ClipboardData(text: siteUrl));
-            Navigator.pop(ctx);
-            s.toast.show('Link copied');
-          },
-        ),
+        BigButton(label: 'Save', onTap: () => Navigator.pop(ctx, true)),
       ]);
     });
+    if (ok == true) {
+      st.setPrefs(qFrom: from, qTo: to, quiet: true);
+      s.toast.show('Quiet ${fmtT(DateTime(2000, 1, 1, from))} to ${fmtT(DateTime(2000, 1, 1, to))}');
+    }
   }
 }
 

@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../data/store.dart';
@@ -11,6 +10,7 @@ import '../widgets/common.dart';
 import '../widgets/icons.dart';
 import '../widgets/kit.dart';
 import 'profile_screen.dart';
+import '../services/haptics.dart';
 
 /// v7 Lil panel: style, outfits (unlock with hearts), streak path, growth.
 class LilScreen extends StatefulWidget {
@@ -46,7 +46,7 @@ class _LilScreenState extends State<LilScreen> {
   }
 
   void _tapOutfit(AppStore st, int i) {
-    HapticFeedback.selectionClick();
+    Haptics.tick();
     if (st.ownedOutfits.contains(i)) {
       st.wear(i);
       setState(() => _preview = null);
@@ -65,7 +65,7 @@ class _LilScreenState extends State<LilScreen> {
   void _unlock(AppStore st) {
     final i = _preview;
     if (i == null || !st.unlock(i)) return;
-    HapticFeedback.heavyImpact();
+    Haptics.heavy();
     setState(() => _preview = null);
     _m.play(MascotAct.hop);
     _m.mood(Mood.happy, const Duration(milliseconds: 1400));
@@ -77,7 +77,7 @@ class _LilScreenState extends State<LilScreen> {
   void _collect(AppStore st, int m) {
     final got = st.collect(m);
     if (got == 0) return;
-    HapticFeedback.heavyImpact();
+    Haptics.heavy();
     _m.play(MascotAct.hop);
     _m.mood(Mood.happy, const Duration(milliseconds: 1200));
     setState(() => _heartBump++);
@@ -149,7 +149,7 @@ class _LilScreenState extends State<LilScreen> {
                       child: Stack(alignment: Alignment.center, children: [
                         GestureDetector(
                           onTap: () {
-                            HapticFeedback.lightImpact();
+                            Haptics.light();
                             _m.play(MascotAct.squish);
                             _m.mood(Mood.happy, const Duration(milliseconds: 800));
                           },
@@ -183,7 +183,7 @@ class _LilScreenState extends State<LilScreen> {
                       index: st.mascotStyle.index,
                       height: 52,
                       onChanged: (i) {
-                        HapticFeedback.selectionClick();
+                        Haptics.tick();
                         st.setStyle(MascotStyle.values[i]);
                         setState(() => _preview = null);
                         _m.play(MascotAct.hop);

@@ -9,6 +9,7 @@ import 'package:little_later/services/auth.dart';
 import 'package:little_later/services/reminders.dart';
 import 'package:little_later/services/sync.dart';
 import 'package:little_later/mascot/mascot_svg.dart';
+import 'package:little_later/data/titles.dart';
 
 AppStore demoStore() {
   AppStore.now = () => DateTime(2026, 11, 14, 13, 30);
@@ -92,6 +93,16 @@ void main() {
       expect(it.toJson()['id'], '7');
     });
 
+    test('link titles are short and readable', () {
+      expect(
+        cleanTitle('Vanshika Patliya on Instagram: "The last page of our notebooks had more creativity than we realised. &#x1f602; Funny how those random doodles #CreativeThinking #Creativity"'),
+        'Vanshika Patliya: The last page of our notebooks had more creativity…',
+      );
+      expect(cleanTitle('Aurio Premium dryfruits on Instagram: "&#x1f331;&#x2728; Fresh"'), 'Aurio Premium dryfruits: 🌱✨ Fresh');
+      expect(cleanTitle('How to cook pasta - YouTube'), 'How to cook pasta');
+      expect(cleanTitle('A' * 100).length, lessThanOrEqualTo(71));
+    });
+
     test('mascot svg builds for every style, outfit, level and mood', () {
       for (final st in MascotStyle.values) {
         for (var of = 0; of < 3; of++) {
@@ -144,8 +155,12 @@ void main() {
       await tester.drag(find.text('Next up'), const Offset(0, -300)); // scroll the row clear of the dock
       await settle(tester, 600);
       await tester.drag(find.text('Q4 roadmap doc to review'), const Offset(-200, 0));
-      await settle(tester, 1200);
-      expect(store.todayQueue.map((e) => e.id), ['d1', 'd2']);
+      await settle(tester, 1000);
+      expect(find.text('Later, when?'), findsOneWidget);
+      await tester.tap(find.text('Set time'));
+      await settle(tester, 1500);
+      // Default "later" time is an hour from now (14:30), so it stays in today's list.
+      expect(DateTime.fromMillisecondsSinceEpoch(store.byId('d3')!.reminder), DateTime(2026, 11, 14, 14, 30));
       await settle(tester, 4000);
     });
 

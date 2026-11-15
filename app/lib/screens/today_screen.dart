@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -8,9 +9,11 @@ import '../data/models.dart';
 import '../data/store.dart';
 import '../mascot/mascot_svg.dart';
 import '../mascot/mascot_view.dart';
+import '../services/haptics.dart';
 import '../theme/tokens.dart';
 import '../widgets/common.dart';
 import '../widgets/icons.dart';
+import 'save_sheet.dart';
 
 /// v7 "Today" screen (#s-today).
 class TodayScreen extends StatefulWidget {
@@ -101,7 +104,7 @@ class _TodayScreenState extends State<TodayScreen> {
     s.buzz(2);
     setState(() => _nextOut = it.id);
     final landed = _fly(from, 'Nice, one more done!');
-    Timer(const Duration(milliseconds: 320), () {
+    Timer(const Duration(milliseconds: 430), () {
       if (!mounted) return;
       final undo = store.complete(it.id);
       setState(() {
@@ -112,20 +115,28 @@ class _TodayScreenState extends State<TodayScreen> {
     });
   }
 
-  void _laterNext(Item it) {
+  Future<bool> _laterNext(Item it) async {
     s.buzz(1);
+    final d = await pickLater(context);
+    if (d == null || !mounted) return false;
     setState(() => _nextOut = it.id);
     s.hero.mood(Mood.sleep, const Duration(milliseconds: 1400));
-    widget.bubble.say('See you tomorrow, ${_morning()}.');
+    widget.bubble.say('See you ${dayLow(d)}, ${fmtT(d)}.');
+    final oldR = it.reminder, oldD = it.dueAt;
     Timer(const Duration(milliseconds: 320), () {
       if (!mounted) return;
-      final undo = store.snoozeToTomorrow(it.id);
+      store.snoozeTo(it.id, d);
       setState(() {
         _nextOut = null;
         _nextAnimIn = true;
       });
-      s.toast.show('Moved to tomorrow, ${_morning()}', undo: () => setState(undo));
+      s.toast.show('Moved to ${dayLow(d)}, ${fmtT(d)}', undo: () => setState(() {
+            it.reminder = oldR;
+            it.dueAt = oldD;
+            store.touchItem(it);
+          }));
     });
+    return true;
   }
 
   void _rowDone(Item it, Offset from) {
@@ -140,19 +151,25 @@ class _TodayScreenState extends State<TodayScreen> {
     });
   }
 
-  void _rowLater(Item it) {
+  Future<bool> _rowLater(Item it) async {
     s.buzz(1);
+    final d = await pickLater(context);
+    if (d == null || !mounted) return false;
     s.hero.mood(Mood.sleep, const Duration(milliseconds: 1400));
     setState(() => _leaving[it.id] = _Leave.later);
+    final oldR = it.reminder, oldD = it.dueAt;
     Timer(const Duration(milliseconds: 700), () {
       if (!mounted) return;
-      final undo = store.snoozeToTomorrow(it.id);
+      store.snoozeTo(it.id, d);
       setState(() => _leaving.remove(it.id));
-      s.toast.show('Moved to tomorrow, ${_morning()}', undo: () => setState(undo));
+      s.toast.show('Moved to ${dayLow(d)}, ${fmtT(d)}', undo: () => setState(() {
+            it.reminder = oldR;
+            it.dueAt = oldD;
+            store.touchItem(it);
+          }));
     });
+    return true;
   }
-
-  String _morning() => fmtT(DateTime(2000, 1, 1, store.morningHour));
 
   Future<void> _open(Item it) async {
     s.buzz(0);
@@ -250,7 +267,7 @@ class _TodayScreenState extends State<TodayScreen> {
                 else
                   const _AllClear(),
                 if (rest.isNotEmpty) ...[
-                  const _Sec(title: 'Later today', trailing: 'Swipe left for tomorrow'),
+                  const _Sec(title: 'Later today', trailing: 'Swipe left for later'),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                     decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(28), boxShadow: ll.shadow),
@@ -395,22 +412,33 @@ class _Header extends StatelessWidget {
                 ),
               ]),
             ),
-            // .search
+            // Save bar (replaces search; Saved has its own search)
             Padding(
               padding: const EdgeInsets.only(top: 18),
               child: Tap(
                 scale: .98,
-                onTap: () => scope.goTab(11),
-                semanticLabel: 'Search your saved ideas',
+                onTap: () async {
+                  scope.buzz(1);
+                  final clip = await Clipboard.getData('text/plain');
+                  final url = extractUrl(clip?.text ?? '') ?? '';
+                  scope.app.openSave(url: url);
+                },
+                semanticLabel: 'Save a link',
                 child: Container(
-                  height: 56,
-                  padding: const EdgeInsets.fromLTRB(18, 0, 6, 0),
-                  decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(99), boxShadow: ll.shadow),
+                  height: 60,
+                  padding: const EdgeInsets.fromLTRB(18, 0, 8, 0),
+                  decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: ll.line)),
                   child: Row(children: [
-                    LLIcon('search', color: ll.ink3),
-                    const SizedBox(width: 10),
-                    Expanded(child: Text('Search your saved ideas', style: t(15, FontWeight.w500, ll.ink3))),
-                    Circ(icon: 'sliders', size: 44, iconSize: 20, bg: ll.blueSoft, fg: ll.blueInk, shadow: false, label: 'Filters', onTap: () => scope.goTab(1)),
+                    LLIcon('link', color: ll.ink3),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text('Save a link or idea', style: t(15, FontWeight.w600, ll.ink3))),
+                    Container(
+                      width: 44,
+                      height: 44,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(color: ll.blue, borderRadius: BorderRadius.circular(15)),
+                      child: const LLIcon('plus', size: 22, color: Colors.white, stroke: 2.3),
+                    ),
                   ]),
                 ),
               ),
@@ -435,7 +463,7 @@ class _HeadPainter extends CustomPainter {
       canvas.drawRect(r, Paint()..shader = const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF0A0D1A), Color(0x000A0D1A)]).createShader(r));
       // radial-gradient(60% 70% at 76% 42%, head-a 0%, rgba(77,124,255,.08) 45%, transparent 72%)
       _ellipse(canvas, size, Offset(size.width * .76, size.height * .42), size.width * .6, size.height * .7,
-          [ll.headA, const Color(0x144D7CFF), const Color(0x004D7CFF)], [0, .45, .72]);
+          [ll.headA, const Color(0x0D4D7CFF), const Color(0x004D7CFF)], [0, .45, .72]);
     } else {
       canvas.drawRect(r, Paint()..shader = LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [ll.headB, ll.bg]).createShader(r));
       _ellipse(canvas, size, Offset(size.width * .92, 0), size.width * 1.1, size.height * .8, [ll.headA, ll.headA.withValues(alpha: 0)], [0, .6]);
@@ -648,14 +676,6 @@ class _RingPainter extends CustomPainter {
         ..strokeWidth = 3.4
         ..strokeCap = StrokeCap.round
         ..color = isDone ? on : track;
-      if (isDone) {
-        canvas.drawArc(rect, start, sweep, false, Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 3.4
-          ..strokeCap = StrokeCap.round
-          ..color = on.withValues(alpha: .6)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4));
-      }
       canvas.drawArc(rect, start, total == 1 ? 2 * math.pi : sweep, false, p);
     }
     canvas.restore();
@@ -790,6 +810,7 @@ class _NextCard extends StatefulWidget {
 class _NextCardState extends State<_NextCard> with SingleTickerProviderStateMixin {
   late final AnimationController _in = AnimationController(vsync: this, duration: const Duration(milliseconds: 600), value: widget.animateIn ? 0 : 1);
   final _doneKey = GlobalKey();
+  bool _pressed = false;
 
   @override
   void initState() {
@@ -843,17 +864,23 @@ class _NextCardState extends State<_NextCard> with SingleTickerProviderStateMixi
                     _Btn(
                       key: _doneKey,
                       icon: 'check',
-                      label: 'Revisited',
-                      bg: ll.ink,
-                      fg: ll.onInk,
+                      label: _pressed ? 'Nice!' : 'Revisited',
+                      bg: _pressed ? ll.blue : ll.ink,
+                      fg: _pressed ? Colors.white : ll.onInk,
+                      pop: _pressed,
                       onTap: () {
+                        if (_pressed) return;
+                        Haptics.medium();
+                        setState(() => _pressed = true);
                         final b = _doneKey.currentContext!.findRenderObject() as RenderBox;
                         final p = b.localToGlobal(Offset(24, b.size.height / 2));
-                        widget.onDone(p);
+                        Timer(const Duration(milliseconds: 260), () {
+                          if (mounted) widget.onDone(p);
+                        });
                       },
                     ),
                     const SizedBox(width: 10),
-                    _Btn(icon: 'snooze', label: 'Tomorrow', bg: ll.surface2, fg: ll.ink2, onTap: widget.onLater),
+                    _Btn(icon: 'snooze', label: 'Later', bg: ll.surface2, fg: ll.ink2, onTap: widget.onLater),
                   ]),
                 ),
               ),
@@ -886,14 +913,14 @@ class _NextCardState extends State<_NextCard> with SingleTickerProviderStateMixi
         );
       },
       child: AnimatedSlide(
-        offset: widget.out ? const Offset(.08, 0) : Offset.zero,
-        duration: const Duration(milliseconds: 500),
-        curve: Motion.spring,
-        child: AnimatedScale(
-          scale: widget.out ? .96 : 1,
-          duration: const Duration(milliseconds: 500),
-          curve: Motion.spring,
-          child: AnimatedOpacity(opacity: widget.out ? 0 : 1, duration: const Duration(milliseconds: 300), child: card),
+        offset: widget.out ? const Offset(1.15, -.04) : Offset.zero,
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeInCubic,
+        child: AnimatedRotation(
+          turns: widget.out ? .025 : 0,
+          duration: const Duration(milliseconds: 420),
+          curve: Curves.easeInCubic,
+          child: AnimatedOpacity(opacity: widget.out ? 0 : 1, duration: const Duration(milliseconds: 420), curve: Curves.easeIn, child: card),
         ),
       ),
     );
@@ -976,21 +1003,34 @@ class _LiveDotState extends State<_LiveDot> with SingleTickerProviderStateMixin 
 }
 
 class _Btn extends StatelessWidget {
-  const _Btn({super.key, required this.icon, required this.label, required this.bg, required this.fg, required this.onTap});
+  const _Btn({super.key, required this.icon, required this.label, required this.bg, required this.fg, required this.onTap, this.pop = false});
   final String icon, label;
   final Color bg, fg;
   final VoidCallback onTap;
+  final bool pop;
   @override
   Widget build(BuildContext context) => Tap(
         onTap: onTap,
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 260),
+          curve: Motion.smooth,
           height: 46,
           padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(99)),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            LLIcon(icon, size: 18, color: fg),
+            TweenAnimationBuilder<double>(
+              key: ValueKey(pop),
+              tween: Tween(begin: pop ? .3 : 1, end: 1),
+              duration: const Duration(milliseconds: 500),
+              curve: Motion.spring,
+              builder: (_, v, c) => Transform.scale(scale: pop ? v * 1.15 : 1, child: c),
+              child: LLIcon(icon, size: 18, color: fg, stroke: pop ? 2.6 : 1.9),
+            ),
             const SizedBox(width: 8),
-            Text(label, maxLines: 1, style: t(14.5, FontWeight.w700, fg)),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: Text(label, key: ValueKey(label), maxLines: 1, style: t(14.5, FontWeight.w700, fg)),
+            ),
           ]),
         ),
       );
@@ -1015,7 +1055,8 @@ class _LaterRow extends StatefulWidget {
   final bool first;
   final _Leave? leaving;
   final void Function(Offset from) onDone;
-  final VoidCallback onLater, onSwipeArm;
+  final Future<bool> Function() onLater;
+  final VoidCallback onSwipeArm;
 
   @override
   State<_LaterRow> createState() => _LaterRowState();
@@ -1153,7 +1194,7 @@ class _LaterRowState extends State<_LaterRow> with TickerProviderStateMixin {
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
                         LLIcon('snooze', size: 18, color: ll.blueInk),
                         const SizedBox(width: 7),
-                        Text('Tomorrow', style: t(13.5, FontWeight.w700, ll.blueInk)),
+                        Text('Later', style: t(13.5, FontWeight.w700, ll.blueInk)),
                       ]),
                     ),
                   ),
@@ -1172,11 +1213,13 @@ class _LaterRowState extends State<_LaterRow> with TickerProviderStateMixin {
                     _armed = false;
                   }
                 },
-                onHorizontalDragEnd: (d) {
+                onHorizontalDragEnd: (d) async {
                   if (widget.leaving != null) return;
                   if (_dx < -90 || d.primaryVelocity! < -900) {
-                    _animateTo(-_width * 1.1);
-                    widget.onLater();
+                    _animateTo(-96);
+                    final ok = await widget.onLater();
+                    if (!mounted) return;
+                    _animateTo(ok ? -_width * 1.1 : 0);
                   } else {
                     _animateTo(0);
                   }

@@ -1,28 +1,36 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 
-import '../config.dart';
-
-/// Thin wrapper over Firebase Auth. Every method returns an error message
-/// suitable for a toast, or null on success.
+/// Thin wrapper over Firebase Auth. Methods return an error message for a
+/// toast, null on success, or [AuthService.verify] when the email still needs
+/// confirming.
 class AuthService {
   AuthService(this.ready);
 
-  /// False when Firebase failed to start (e.g. tests, no network on first run).
+  /// False when Firebase failed to start (tests, or no network on first run).
   final bool ready;
-  bool _gInit = false;
+
+  static const verify = 'verify';
 
   User? get user => ready ? FirebaseAuth.instance.currentUser : null;
 
-  bool get googleAvailable => ready && googleWebClientId.isNotEmpty;
+  /// Google accounts are already verified; email accounts must click the link.
+  bool get verified {
+    final u = user;
+    if (u == null) return false;
+    return u.emailVerified || u.providerData.any((p) => p.providerId == 'google.com');
+  }
 
   Future<String?> email(String email, String password, {required bool signUp}) async {
     if (!ready) return 'Can’t reach Little Later right now. Check your internet.';
     try {
-      if (signUp) {
-        await FirebaseAuth.instance.createUserWithEmailAndPassword(email: email.trim(), password: password);
-      } else {
-        await FirebaseAuth.instance.signInWithEmailAndPassword(email: email.trim(), password: password);
+      final auth = FirebaseAuth.instance;
+      final cred = signUp
+          ? await auth.createUserWithEmailAndPassword(email: email.trim(), password: password)
+          : await auth.signInWithEmailAndPassword(email: email.trim(), password: password);
+      final u = cred.user;
+      if (u != null && !u.emailVerified) {
+        await u.sendEmailVerification();
+        return verify;
       }
       return null;
     } on FirebaseAuthException catch (e) {
@@ -32,25 +40,38 @@ class AuthService {
     }
   }
 
-  Future<String?> google() async {
-    if (!googleAvailable) return 'Google sign-in isn’t switched on yet. Use email for now.';
+  /// Re-checks the verification link. Returns true once the email is confirmed.
+  Future<bool> checkVerified() async {
+    final u = user;
+    if (u == null) return false;
     try {
-      if (!_gInit) {
-        await GoogleSignIn.instance.initialize(serverClientId: googleWebClientId);
-        _gInit = true;
-      }
-      final acc = await GoogleSignIn.instance.authenticate();
-      final idToken = acc.authentication.idToken;
-      if (idToken == null) return 'Google didn’t return a sign-in token.';
-      await FirebaseAuth.instance.signInWithCredential(GoogleAuthProvider.credential(idToken: idToken));
+      await u.reload();
+    } catch (_) {}
+    return FirebaseAuth.instance.currentUser?.emailVerified ?? false;
+  }
+
+  Future<String?> resendVerification() async {
+    try {
+      await user?.sendEmailVerification();
       return null;
-    } on GoogleSignInException catch (e) {
-      if (e.code == GoogleSignInExceptionCode.canceled) return 'cancelled';
-      return 'Google sign-in failed. Try email instead.';
     } on FirebaseAuthException catch (e) {
       return _msg(e);
+    }
+  }
+
+  /// Google sign-in through Firebase's own Google flow (a Google account page
+  /// opens, then returns to the app).
+  Future<String?> google() async {
+    if (!ready) return 'Can’t reach Little Later right now. Check your internet.';
+    try {
+      final p = GoogleAuthProvider()..setCustomParameters({'prompt': 'select_account'});
+      await FirebaseAuth.instance.signInWithProvider(p);
+      return null;
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'canceled' || e.code == 'web-context-canceled' || e.code == 'user-cancelled') return 'cancelled';
+      return _msg(e);
     } catch (_) {
-      return 'Google sign-in failed. Try email instead.';
+      return 'Google sign-in failed. Try again.';
     }
   }
 
@@ -66,9 +87,6 @@ class AuthService {
 
   Future<void> signOut() async {
     if (!ready) return;
-    try {
-      if (_gInit) await GoogleSignIn.instance.signOut();
-    } catch (_) {}
     await FirebaseAuth.instance.signOut();
   }
 
@@ -84,12 +102,13 @@ class AuthService {
 
   static String _msg(FirebaseAuthException e) => switch (e.code) {
         'invalid-email' => 'That email doesn’t look right.',
-        'user-not-found' || 'invalid-credential' || 'wrong-password' => 'Email or password is wrong.',
+        'user-not-found' || 'invalid-credential' || 'wrong-password' || 'INVALID_LOGIN_CREDENTIALS' => 'Email or password is wrong.',
         'email-already-in-use' => 'That email already has an account. Sign in instead.',
         'weak-password' => 'Password needs at least 6 characters.',
         'network-request-failed' => 'No internet connection.',
         'too-many-requests' => 'Too many tries. Wait a minute.',
         'operation-not-allowed' => 'This sign-in method isn’t switched on yet.',
+        'internal-error' when (e.message ?? '').contains('CONFIGURATION') => 'Google sign-in needs one more setup step in Firebase.',
         _ => e.message ?? 'Sign-in failed.',
       };
 }

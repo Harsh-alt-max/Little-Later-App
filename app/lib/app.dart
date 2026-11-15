@@ -4,7 +4,6 @@ import 'package:app_links/app_links.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
 import 'data/models.dart';
 import 'data/store.dart';
@@ -24,6 +23,7 @@ import 'services/sync.dart';
 import 'theme/tokens.dart';
 import 'widgets/common.dart';
 import 'widgets/dock.dart';
+import 'services/haptics.dart';
 
 class Services {
   Services({required this.auth, required this.sync, required this.reminders, this.platform = true});
@@ -109,24 +109,12 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
   }
 
   void _listenPlatform() {
-    try {
-      final share = ReceiveSharingIntent.instance;
-      share.getInitialMedia().then((m) {
-        _onShared(m);
-        share.reset();
-      });
-      _subs.add(share.getMediaStream().listen(_onShared, onError: (_) {}));
-    } catch (_) {}
+    // Shares from other apps open the small share window (ShareActivity), not
+    // this screen. Here we only handle folder-invite links.
     try {
       final links = AppLinks();
       _subs.add(links.uriLinkStream.listen(_onLink, onError: (_) {}));
     } catch (_) {}
-  }
-
-  void _onShared(List<SharedMediaFile> files) {
-    final txt = files.map((f) => f.path).where((p) => p.trim().isNotEmpty).join('\n');
-    if (txt.isEmpty || !store.onboarded) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) => openQuickSave(txt));
   }
 
   /// littlelater://join?cid=… or https://…/join.html?cid=…
@@ -163,7 +151,10 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
   @override
   void didChangeAppLifecycleState(AppLifecycleState s) {
     if (s == AppLifecycleState.paused) sync.flush();
-    if (s == AppLifecycleState.resumed) setState(() {}); // refresh "due now", greeting
+    if (s == AppLifecycleState.resumed) {
+      store.reloadFromDisk(); // pick up saves made from the share window
+      setState(() {}); // refresh "due now", greeting
+    }
   }
 
   @override
@@ -346,7 +337,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
   void _undo() {
     _toast.undo?.call();
     _toast.hide();
-    if (store.haptics) HapticFeedback.selectionClick();
+    if (store.haptics) Haptics.tick();
   }
 
   // ---------------------------------------------------------------------------
@@ -403,7 +394,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
               const Positioned.fill(
                 child: IgnorePointer(
                   child: DecoratedBox(
-                    decoration: BoxDecoration(gradient: RadialGradient(center: Alignment(0, -.32), radius: .9, colors: [Color(0x125A7DFF), Color(0x005A7DFF)], stops: [0, .7])),
+                    decoration: BoxDecoration(gradient: RadialGradient(center: Alignment(0, -.32), radius: .9, colors: [Color(0x0A5A7DFF), Color(0x005A7DFF)], stops: [0, .7])),
                   ),
                 ),
               ),
@@ -411,7 +402,8 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 450),
                 switchInCurve: Motion.smooth,
-                switchOutCurve: const Threshold(0),
+                // Only the incoming screen is shown, so screens never overlap.
+                layoutBuilder: (current, _) => current ?? const SizedBox(),
                 transitionBuilder: (child, anim) {
                   final dx = forward ? 40.0 : -30.0;
                   return AnimatedBuilder(
@@ -432,6 +424,18 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
                   _goTab(i);
                 },
                 onPlus: () => openSave(folder: _folder?.name ?? ''),
+              ),
+            ),
+            // Keeps scrolled content from showing under the status bar.
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 0,
+              height: MediaQuery.paddingOf(context).top + 14,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, stops: const [0, .7, 1], colors: [ll.bg, ll.bg.withValues(alpha: .85), ll.bg.withValues(alpha: 0)])),
+                ),
               ),
             ),
             ToastView(controller: _toast, onUndo: _undo),
@@ -479,7 +483,7 @@ class _LevelUpOverlayState extends State<LevelUpOverlay> with SingleTickerProvid
   @override
   void initState() {
     super.initState();
-    HapticFeedback.heavyImpact();
+    Haptics.heavy();
     scheduleMicrotask(() => setState(() => _on = true));
     Timer(const Duration(milliseconds: 700), () {
       if (!mounted) return;

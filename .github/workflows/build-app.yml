@@ -41,7 +41,7 @@ jobs:
 
       - run: flutter pub get
       - run: flutter analyze
-      - run: flutter test test/today_test.dart test/screens_test.dart
+      - run: flutter test test/today_test.dart test/screens_test.dart test/share_test.dart
 
       - name: Set up signing key
         id: signing
