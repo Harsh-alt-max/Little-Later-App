@@ -83,7 +83,26 @@ class AppStore extends ChangeNotifier {
   int morningHour = 9;
   int quietFrom = 23;
   int quietTo = 7;
+  String viewMode = 'list'; // list | grid | large
+  int tone = 0; // notification tune 0..2
+  bool strongVibe = true;
+  List<String> mutedFolders = []; // collab ids (or names) muted on this phone
   int localUpdatedAt = 0;
+
+  bool isMuted(Folder f) => mutedFolders.contains(f.collabId.isNotEmpty ? f.collabId : f.name.toLowerCase());
+  bool isMutedName(String folder) {
+    for (final f in folders) {
+      if (f.name.toLowerCase() == folder.toLowerCase()) return isMuted(f);
+    }
+    return false;
+  }
+
+  void setMuted(Folder f, bool on) {
+    final k = f.collabId.isNotEmpty ? f.collabId : f.name.toLowerCase();
+    mutedFolders.remove(k);
+    if (on) mutedFolders.add(k);
+    _save();
+  }
 
   // Game
   int xp = 0;
@@ -499,7 +518,10 @@ class AppStore extends ChangeNotifier {
     _save();
   }
 
-  void setPrefs({bool? dark, bool? haptic, bool? notif, bool? quiet, int? morning, String? name, int? qFrom, int? qTo}) {
+  void setPrefs({bool? dark, bool? haptic, bool? notif, bool? quiet, int? morning, String? name, int? qFrom, int? qTo, String? view, int? tune, bool? vibe}) {
+    if (view != null) viewMode = view;
+    if (tune != null) tone = tune;
+    if (vibe != null) strongVibe = vibe;
     if (dark != null) darkTheme = dark;
     if (haptic != null) haptics = haptic;
     if (notif != null) notifOn = notif;
@@ -535,31 +557,43 @@ class AppStore extends ChangeNotifier {
   void savedFromRemote() => _save(local: false);
 
   Map<String, dynamic> toJson({bool includeAccount = false}) => {
-        'items': items.map((e) => e.toJson()).toList(),
-        'folders': folders.map((e) => e.toJson()).toList(),
-        'deletedIds': deletedIds.length > 400 ? deletedIds.sublist(deletedIds.length - 400) : deletedIds,
-        'updatedAt': localUpdatedAt,
-        if (includeAccount) 'user': {'name': userName, 'email': userEmail, 'guest': guest, 'onboarded': onboarded},
-        if (includeAccount) 'notes': notes.map((e) => e.toJson()).toList(),
-        'prefs': {'dark': darkTheme, 'haptics': haptics, 'notif': notifOn, 'quiet': quietOn, 'morningHour': morningHour, 'quietFrom': quietFrom, 'quietTo': quietTo},
-        'game': {
-          'xp': xp,
-          'doneToday': doneToday,
-          'doneDay': doneDay,
-          'revisited': revisitedTotal,
-          'streak': streak,
-          'lastHiDay': lastHiDay,
-          'freezes': freezes,
-          'hearts': hearts,
-          'collected': collected,
-          'owned': ownedOutfits,
-        },
-        'mascot': {
-          'name': mascotName,
-          'style': mascotStyle.name,
-          'outfit': {for (final e in outfit.entries) e.key.name: e.value},
-        },
-      };
+    'items': items.map((e) => e.toJson()).toList(),
+    'folders': folders.map((e) => e.toJson()).toList(),
+    'deletedIds': deletedIds.length > 400 ? deletedIds.sublist(deletedIds.length - 400) : deletedIds,
+    'updatedAt': localUpdatedAt,
+    if (includeAccount) 'user': {'name': userName, 'email': userEmail, 'guest': guest, 'onboarded': onboarded},
+    if (includeAccount) 'notes': notes.map((e) => e.toJson()).toList(),
+    'prefs': {
+      'dark': darkTheme,
+      'haptics': haptics,
+      'notif': notifOn,
+      'quiet': quietOn,
+      'morningHour': morningHour,
+      'quietFrom': quietFrom,
+      'quietTo': quietTo,
+      'view': viewMode,
+      'tone': tone,
+      'vibe': strongVibe,
+      'muted': mutedFolders,
+    },
+    'game': {
+      'xp': xp,
+      'doneToday': doneToday,
+      'doneDay': doneDay,
+      'revisited': revisitedTotal,
+      'streak': streak,
+      'lastHiDay': lastHiDay,
+      'freezes': freezes,
+      'hearts': hearts,
+      'collected': collected,
+      'owned': ownedOutfits,
+    },
+    'mascot': {
+      'name': mascotName,
+      'style': mascotStyle.name,
+      'outfit': {for (final e in outfit.entries) e.key.name: e.value},
+    },
+  };
 
   void fromJson(Map<String, dynamic> j, {bool includeAccount = false}) {
     items = ((j['items'] as List?) ?? []).whereType<Map>().map((m) => Item.fromJson(m.cast<String, dynamic>())).toList();
@@ -588,6 +622,10 @@ class AppStore extends ChangeNotifier {
     morningHour = (p['morningHour'] as num?)?.toInt() ?? 9;
     quietFrom = (p['quietFrom'] as num?)?.toInt() ?? 23;
     quietTo = (p['quietTo'] as num?)?.toInt() ?? 7;
+    viewMode = p['view'] as String? ?? 'list';
+    tone = ((p['tone'] as num?)?.toInt() ?? 0).clamp(0, 2);
+    strongVibe = p['vibe'] != false;
+    mutedFolders = ((p['muted'] as List?) ?? []).map((e) => '$e').toList();
   }
 
   void _gameFrom(Map g) {
@@ -669,18 +707,38 @@ class AppStore extends ChangeNotifier {
     int at(int dayOff, int h, int m) => DateTime(n.year, n.month, n.day + dayOff, h, m).millisecondsSinceEpoch;
     final soon = DateTime(n.year, n.month, n.day, n.hour + 2, 30);
     final later = DateTime(n.year, n.month, n.day, n.hour + 4);
-    folders = [
-      Folder(name: 'Hobby', kind: 'hobby'),
-      Folder(name: 'Work', kind: 'work'),
-      Folder(name: 'Love', kind: 'love'),
-      Folder(name: 'Goa trip', kind: 'trip', icon: 'plane'),
-    ];
+    folders = [Folder(name: 'Hobby', kind: 'hobby'), Folder(name: 'Work', kind: 'work'), Folder(name: 'Love', kind: 'love'), Folder(name: 'Goa trip', kind: 'trip', icon: 'plane')];
     items = [
-      Item(id: 'd1', kind: ItemKind.link, title: 'Slow-roasted tomato pasta', folder: 'Hobby', url: 'https://youtube.com/watch?v=pasta', reminder: n.subtract(const Duration(minutes: 5)).millisecondsSinceEpoch, note: 'Get basil and cherry tomatoes first.'),
+      Item(
+        id: 'd1',
+        kind: ItemKind.link,
+        title: 'Slow-roasted tomato pasta',
+        folder: 'Hobby',
+        url: 'https://youtube.com/watch?v=pasta',
+        reminder: n.subtract(const Duration(minutes: 5)).millisecondsSinceEpoch,
+        note: 'Get basil and cherry tomatoes first.',
+      ),
       Item(id: 'd2', kind: ItemKind.link, title: 'Anniversary gift ideas', folder: 'Love', url: 'https://pinterest.com/gifts', reminder: soon.millisecondsSinceEpoch),
-      Item(id: 'd3', kind: ItemKind.link, title: 'Q4 roadmap doc to review', folder: 'Work', url: 'https://docs.google.com/document/q4', reminder: later.millisecondsSinceEpoch, note: 'Comments due Friday.'),
+      Item(
+        id: 'd3',
+        kind: ItemKind.link,
+        title: 'Q4 roadmap doc to review',
+        folder: 'Work',
+        url: 'https://docs.google.com/document/q4',
+        reminder: later.millisecondsSinceEpoch,
+        note: 'Comments due Friday.',
+      ),
       Item(id: 'd4', kind: ItemKind.link, title: 'One-pan lemon garlic chicken', folder: 'Hobby', url: 'https://youtube.com/watch?v=chicken', reminder: at(1, 9, 0)),
-      Item(id: 'd5', kind: ItemKind.todoList, title: 'Buy oat milk and basil', folder: 'Hobby', tasks: [TodoTask(id: 't1', text: 'Oat milk'), TodoTask(id: 't2', text: 'Basil')]),
+      Item(
+        id: 'd5',
+        kind: ItemKind.todoList,
+        title: 'Buy oat milk and basil',
+        folder: 'Hobby',
+        tasks: [
+          TodoTask(id: 't1', text: 'Oat milk'),
+          TodoTask(id: 't2', text: 'Basil'),
+        ],
+      ),
       Item(id: 'd6', kind: ItemKind.link, title: 'Design systems talk', folder: 'Work', url: 'https://youtube.com/watch?v=ds'),
       Item(id: 'd7', kind: ItemKind.link, title: 'Beach shacks near Palolem', folder: 'Goa trip', url: 'https://instagram.com/p/palolem', reminder: at(3, 10, 0)),
       Item(id: 'd8', kind: ItemKind.link, title: 'Ceramic mug set for Mom', folder: 'Love', url: 'https://etsy.com/mugs'),
@@ -700,9 +758,6 @@ class AppStore extends ChangeNotifier {
     freezes = 3;
     hearts = 5;
     collected = [3, 5];
-    notes = [
-      Note(text: '“Slow-roasted tomato pasta” is due now', icon: 'bell', itemId: 'd1'),
-      Note(text: 'You reached level 2, Little', icon: 'spark', unread: false, ts: at(-1, 18, 0)),
-    ];
+    notes = [Note(text: '“Slow-roasted tomato pasta” is due now', icon: 'bell', itemId: 'd1'), Note(text: 'You reached level 2, Little', icon: 'spark', unread: false, ts: at(-1, 18, 0))];
   }
 }

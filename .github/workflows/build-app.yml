@@ -3,9 +3,9 @@ name: Build app
 on:
   push:
     branches: [main]
-    paths: ['app/**', '.github/workflows/build-app.yml']
+    paths: ['app/**', 'extension/**', '.github/workflows/build-app.yml']
   pull_request:
-    paths: ['app/**']
+    paths: ['app/**', 'extension/**']
   workflow_dispatch:
 
 permissions:
@@ -86,6 +86,7 @@ jobs:
           mkdir -p ../dist
           cp build/app/outputs/flutter-apk/app-release.apk ../dist/Little-Later.apk
           cp build/app/outputs/bundle/release/app-release.aab ../dist/Little-Later.aab
+          (cd ../extension && node --check background.js && for f in popup.js lib/*.js; do node --check "$f"; done && python3 -c "import json;json.load(open('manifest.json'))" && zip -qr ../dist/Little-Later-Chrome-Extension.zip . -x '.*')
           VER=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f1)
           echo "VER=$VER" >> "$GITHUB_ENV"
 
@@ -104,6 +105,7 @@ jobs:
           files: |
             dist/Little-Later.apk
             dist/Little-Later.aab
+            dist/Little-Later-Chrome-Extension.zip
 
       - name: Remove signing files
         if: always()

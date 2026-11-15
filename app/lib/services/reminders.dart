@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart' show Color;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
@@ -22,14 +23,65 @@ class Reminders {
   String? launchItemId;
   final Set<int> _scheduled = {};
 
-  static const _channel = AndroidNotificationDetails(
-    'reminders',
-    'Reminders',
-    channelDescription: 'When a saved idea is due',
-    importance: Importance.high,
-    priority: Priority.high,
-    category: AndroidNotificationCategory.reminder,
-  );
+  static const toneNames = ['Lil hello', 'Pop pop', 'Soft chime'];
+
+  /// Strong ~2 second buzz: long, short break, long, short break, long.
+  static final _strong = Int64List.fromList([0, 650, 120, 650, 120, 550]);
+
+  /// Android fixes a channel's sound and vibration when it's created, so each
+  /// tune + vibration choice gets its own channel.
+  AndroidNotificationDetails _details({int? tone, bool? vibe, String? group}) {
+    final tn = tone ?? store.tone;
+    final v = vibe ?? store.strongVibe;
+    return AndroidNotificationDetails(
+      'll_tone${tn + 1}_${v ? 'v' : 'nv'}',
+      'Reminders · ${toneNames[tn]}${v ? '' : ' (no vibration)'}',
+      channelDescription: 'When a saved idea is due',
+      importance: Importance.max,
+      priority: Priority.max,
+      category: AndroidNotificationCategory.reminder,
+      sound: RawResourceAndroidNotificationSound('ll_tone_${tn + 1}'),
+      playSound: true,
+      enableVibration: v,
+      vibrationPattern: v ? _strong : null,
+      groupKey: group,
+      color: const Color(0xFF3D7BFF),
+    );
+  }
+
+  /// Plays the chosen tune (and buzz) right now as a preview.
+  Future<void> preview({int? tone, bool? vibe}) async {
+    if (!_ready || !await askPermission()) return;
+    final tn = tone ?? store.tone;
+    await _plugin.show(
+      id: 3,
+      title: '${store.mascotName} says hi',
+      body: '“${toneNames[tn]}” is your reminder sound',
+      notificationDetails: NotificationDetails(
+        android: _details(tone: tn, vibe: vibe),
+      ),
+    );
+  }
+
+  /// Someone added something to a shared folder: tell this phone (unless muted).
+  Future<void> sharedAdded(Folder f, Item it) async {
+    if (!_ready || !store.notifOn || store.isMuted(f) || it.extra['msg'] == true) return;
+    final who = '${it.extra['senderName'] ?? ''}'.isNotEmpty ? '${it.extra['senderName']}' : '${it.extra['senderEmail'] ?? 'Someone'}'.split('@').first;
+    final what = it.kind == ItemKind.todoList
+        ? 'a to-do'
+        : it.url.isNotEmpty
+        ? 'a link'
+        : 'a reminder';
+    try {
+      await _plugin.show(
+        id: 500000 + (it.id.hashCode & 0xffff),
+        title: '${f.name} · $who added $what',
+        body: it.title,
+        payload: it.id,
+        notificationDetails: NotificationDetails(android: _details(group: 'shared_${f.collabId}')),
+      );
+    } catch (_) {}
+  }
 
   Future<void> init() async {
     if (kIsWeb) return;
@@ -42,16 +94,25 @@ class Reminders {
       }
 
       try {
-        await _plugin.initialize(settings: const InitializationSettings(android: AndroidInitializationSettings('@drawable/ic_stat_ll')), onDidReceiveNotificationResponse: onTap);
+        await _plugin.initialize(
+          settings: const InitializationSettings(android: AndroidInitializationSettings('@drawable/ic_stat_ll')),
+          onDidReceiveNotificationResponse: onTap,
+        );
       } catch (_) {
         // Never let a missing icon switch reminders off: fall back to the app icon.
-        await _plugin.initialize(settings: const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')), onDidReceiveNotificationResponse: onTap);
+        await _plugin.initialize(
+          settings: const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')),
+          onDidReceiveNotificationResponse: onTap,
+        );
       }
       final launch = await _plugin.getNotificationAppLaunchDetails();
       if (launch?.didNotificationLaunchApp == true) launchItemId = launch?.notificationResponse?.payload;
       _ready = true;
       // Clear reminders left from the previous run; reschedule() re-adds the current ones.
       await _plugin.cancelAllPendingNotifications();
+      try {
+        await _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.deleteNotificationChannel(channelId: 'reminders');
+      } catch (_) {}
       store.changes.listen((_) => reschedule());
       store.addListener(_onAny);
       await reschedule();
@@ -83,12 +144,12 @@ class Reminders {
       id: 1,
       title: '${store.mascotName} says hi',
       body: 'Notifications work. A reminder test arrives in 10 seconds.',
-      notificationDetails: const NotificationDetails(android: _channel),
+      notificationDetails: NotificationDetails(android: _details()),
     );
     await _plugin.zonedSchedule(
       id: 2,
       scheduledDate: tz.TZDateTime.now(tz.local).add(const Duration(seconds: 10)),
-      notificationDetails: const NotificationDetails(android: _channel),
+      notificationDetails: NotificationDetails(android: _details()),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       title: '${store.mascotName} says: Time for this',
       body: 'This is how your reminders will look.',
@@ -127,7 +188,8 @@ class Reminders {
       _scheduled.clear();
       if (!store.notifOn) return;
       final now = DateTime.now();
-      final up = store.items.where((i) => !i.isDone && i.whenTs > now.millisecondsSinceEpoch).toList()..sort((a, b) => a.whenTs.compareTo(b.whenTs));
+      final up = store.items.where((i) => !i.isDone && i.extra['msg'] != true && i.whenTs > now.millisecondsSinceEpoch && !store.isMutedName(i.folder)).toList()
+        ..sort((a, b) => a.whenTs.compareTo(b.whenTs));
       final a = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       var exact = true;
       try {
@@ -140,14 +202,21 @@ class Reminders {
         await _plugin.zonedSchedule(
           id: nid,
           scheduledDate: tz.TZDateTime.from(when, tz.local),
-          notificationDetails: const NotificationDetails(android: _channel),
+          notificationDetails: NotificationDetails(android: _details()),
           androidScheduleMode: exact ? AndroidScheduleMode.exactAllowWhileIdle : AndroidScheduleMode.inexactAllowWhileIdle,
-          title: '${store.mascotName} says: ${_question(it)}',
+          title: _sharedFolder(it.folder) != null ? '${_sharedFolder(it.folder)} · ${_question(it)}' : '${store.mascotName} says: ${_question(it)}',
           body: it.title,
           payload: it.id,
         );
       }
     } catch (_) {}
+  }
+
+  String? _sharedFolder(String name) {
+    for (final f in store.folders) {
+      if (f.collab && f.name.toLowerCase() == name.toLowerCase()) return f.name;
+    }
+    return null;
   }
 
   static String _question(Item it) {

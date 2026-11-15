@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Little Later",
+  "short_name": "Little Later",
+  "version": "1.4.0",
+  "description": "Save any page for later in one click. It shows up in the Little Later app on your phone, with a reminder if you want one.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAr5jsXPwl0P1EgrQkj4JLS+0fcCCKpiJCuZxLD3KXelsMffM9PKOY4oBi59RbSLyIU+IWNcVzuNclNaaQHaQPL+HzFd28eosaetYAMrQ6MqX9LZyp58HYDs8VwDjszQ0a7xisH7CfQB9e2rw4ItMCaf+aHqhRuMcxhcv4jPV8ULFzCDRb7fs5MvjTu+ge/VX4GyjGziIha1M10HuQQbD7YoE17KrS0VAZOCnR4YyMZ+crxkMCE8Zhk+zlJqeOsWZL/zp0bTTzq8An4n0kgkv7fg2X8OHXzpeQvT/7EmRQos99xZw10sbo5R0I/l7xhbaNqK10C9u+kMzlnC7FBVTI/QIDAQAB",
+  "icons": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
+  "action": {
+    "default_title": "Save to Little Later",
+    "default_popup": "popup.html",
+    "default_icon": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png" }
+  },
+  "background": { "service_worker": "background.js", "type": "module" },
+  "permissions": ["activeTab", "scripting", "storage", "contextMenus"],
+  "host_permissions": [
+    "https://identitytoolkit.googleapis.com/*",
+    "https://securetoken.googleapis.com/*",
+    "https://firestore.googleapis.com/*"
+  ],
+  "externally_connectable": { "matches": ["https://harsh-alt-max.github.io/*"] },
+  "commands": {
+    "_execute_action": { "suggested_key": { "default": "Ctrl+Shift+S", "mac": "Command+Shift+S" }, "description": "Save this page" }
+  }
+}

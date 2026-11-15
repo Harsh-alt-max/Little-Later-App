@@ -159,6 +159,9 @@ class SyncService {
     if (_applyCollab(f, p)) store.savedFromRemote();
   }
 
+  /// Someone else added a link / reminder / to-do to a shared folder (never chat).
+  void Function(Folder f, Item it)? onShared;
+
   /// Test hook: apply a shared-folder payload as if it came from the cloud.
   @visibleForTesting
   void debugApplyCollab(String cid, Map<String, dynamic> p, {String me = ''}) {
@@ -298,7 +301,11 @@ class SyncService {
       final li = store.byId(ri.id);
       if (li == null) {
         store.items.insert(0, ri);
-        if (!_firstCollabPull(f.collabId)) store.addNote(Note(text: 'New in ${f.name}: “${ri.title}”', icon: 'users', itemId: ri.id), save: false);
+        if (!_firstCollabPull(f.collabId)) {
+          store.addNote(Note(text: 'New in ${f.name}: “${ri.title}”', icon: 'users', itemId: ri.id), save: false);
+          final from = '${ri.extra['senderEmail'] ?? ''}';
+          if (ri.extra['msg'] != true && from != _email) onShared?.call(f, ri);
+        }
         changed = true;
       } else if (ri.updatedAt > li.updatedAt) {
         // Merge to-do steps so a tick on one phone never gets undone by another.
@@ -350,16 +357,7 @@ class SyncService {
     known.addAll(its.map((e) => '${e['id']}'));
     _knownIds[f.collabId] = known;
     final payload = jsonEncode({
-      'folder': {
-        'name': f.name,
-        'kind': 'folder',
-        'icon': f.icon,
-        'collab': true,
-        'collabId': f.collabId,
-        'ownerEmail': f.ownerEmail,
-        'ownerName': f.ownerName,
-        'collaborators': collabs,
-      },
+      'folder': {'name': f.name, 'kind': 'folder', 'icon': f.icon, 'collab': true, 'collabId': f.collabId, 'ownerEmail': f.ownerEmail, 'ownerName': f.ownerName, 'collaborators': collabs},
       'items': its,
       'deletedIds': del.toList(),
       'updatedAt': DateTime.now().millisecondsSinceEpoch,
@@ -403,12 +401,12 @@ class SyncService {
       final rf = (p['folder'] as Map?) ?? {};
       var fname = '${rf['name'] ?? (name.isEmpty ? 'Shared' : name)}';
       if (store.folderNamed(fname) != null) fname = '$fname (shared)';
-      final f = Folder(name: fname, icon: '${rf['icon'] ?? 'folder'}', collab: true, extra: {
-        'collabId': cid,
-        'ownerEmail': rf['ownerEmail'] ?? '',
-        'ownerName': rf['ownerName'] ?? by,
-        'collaborators': rf['collaborators'] ?? [],
-      });
+      final f = Folder(
+        name: fname,
+        icon: '${rf['icon'] ?? 'folder'}',
+        collab: true,
+        extra: {'collabId': cid, 'ownerEmail': rf['ownerEmail'] ?? '', 'ownerName': rf['ownerName'] ?? by, 'collaborators': rf['collaborators'] ?? []},
+      );
       store.folders.add(f);
       _seen.add(cid);
       _applyCollab(f, p);

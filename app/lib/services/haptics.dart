@@ -29,4 +29,11 @@ class Haptics {
 
   /// Celebration (level up, unlock).
   static void heavy() => _buzz(40, 255);
+
+  /// The ~2 second reminder buzz (preview in Settings).
+  static Future<void> strong() async {
+    try {
+      await Vibration.vibrate(pattern: [0, 650, 120, 650, 120, 550], intensities: [0, 255, 0, 255, 0, 255]);
+    } catch (_) {}
+  }
 }

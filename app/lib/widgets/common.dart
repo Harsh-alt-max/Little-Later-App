@@ -57,6 +57,7 @@ abstract class AppActions {
   void openReminder(Item item);
   void openFolder(Folder f);
   void openNotes();
+
   /// Add stars; handles the mascot reaction and level-up screen.
   void gain(int n, {String? line});
   AuthService get auth;
@@ -64,20 +65,13 @@ abstract class AppActions {
   Reminders get reminders;
   Future<void> signOut({bool delete = false});
   void startSignIn();
+
+  /// Pull-to-refresh: sync, reload, reschedule reminders, fetch missing covers.
+  Future<void> refresh();
 }
 
 class AppScope extends InheritedWidget {
-  const AppScope({
-    super.key,
-    required super.child,
-    required this.store,
-    required this.toast,
-    required this.hero,
-    required this.heroKey,
-    required this.goTab,
-    required this.levelUp,
-    required this.app,
-  });
+  const AppScope({super.key, required super.child, required this.store, required this.toast, required this.hero, required this.heroKey, required this.goTab, required this.levelUp, required this.app});
 
   final AppStore store;
   final ToastController toast;
@@ -187,19 +181,26 @@ class Circ extends StatelessWidget {
         width: size,
         height: size,
         decoration: BoxDecoration(shape: BoxShape.circle, color: bg ?? (ll.dark ? ll.surface2 : ll.surface), boxShadow: shadow ? ll.shadow : null),
-        child: Stack(alignment: Alignment.center, children: [
-          LLIcon(icon, size: iconSize, color: fg ?? ll.ink),
-          if (dot)
-            Positioned(
-              top: 11,
-              right: 12,
-              child: Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: ll.blue, border: Border.all(color: bg ?? (ll.dark ? ll.surface2 : ll.surface), width: 2)),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            LLIcon(icon, size: iconSize, color: fg ?? ll.ink),
+            if (dot)
+              Positioned(
+                top: 11,
+                right: 12,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: ll.blue,
+                    border: Border.all(color: bg ?? (ll.dark ? ll.surface2 : ll.surface), width: 2),
+                  ),
+                ),
               ),
-            ),
-        ]),
+          ],
+        ),
       ),
     );
   }
@@ -316,25 +317,27 @@ class ToastView extends StatelessWidget {
                     constraints: const BoxConstraints(maxWidth: 350),
                     padding: const EdgeInsets.fromLTRB(18, 8, 8, 8),
                     decoration: BoxDecoration(color: ll.ink, borderRadius: BorderRadius.circular(99)),
-                    child: Row(children: [
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          child: Text(controller.message ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: t(14, FontWeight.w700, ll.onInk)),
-                        ),
-                      ),
-                      if (controller.undo != null)
-                        Tap(
-                          onTap: onUndo,
-                          child: Container(
-                            height: 38,
-                            padding: const EdgeInsets.symmetric(horizontal: 15),
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(color: ll.onInk.withValues(alpha: .14), borderRadius: BorderRadius.circular(99)),
-                            child: Text('Undo', style: t(13.5, FontWeight.w800, ll.onInk)),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            child: Text(controller.message ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: t(14, FontWeight.w700, ll.onInk)),
                           ),
                         ),
-                    ]),
+                        if (controller.undo != null)
+                          Tap(
+                            onTap: onUndo,
+                            child: Container(
+                              height: 38,
+                              padding: const EdgeInsets.symmetric(horizontal: 15),
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(color: ll.onInk.withValues(alpha: .14), borderRadius: BorderRadius.circular(99)),
+                              child: Text('Undo', style: t(13.5, FontWeight.w800, ll.onInk)),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -376,7 +379,9 @@ void flyStarToMascot(BuildContext context, {required Offset from, required Globa
 
 void spawnSparks(OverlayState overlay, Offset at, int n, Color color) {
   late OverlayEntry e;
-  e = OverlayEntry(builder: (_) => _Sparks(at: at, n: n, color: color, onDone: () => e.remove()));
+  e = OverlayEntry(
+    builder: (_) => _Sparks(at: at, n: n, color: color, onDone: () => e.remove()),
+  );
   overlay.insert(e);
 }
 
@@ -389,8 +394,7 @@ class _FlyStar extends StatefulWidget {
 }
 
 class _FlyStarState extends State<_FlyStar> with SingleTickerProviderStateMixin {
-  late final AnimationController c = AnimationController(vsync: this, duration: const Duration(milliseconds: 800))
-    ..forward().whenComplete(widget.onDone);
+  late final AnimationController c = AnimationController(vsync: this, duration: const Duration(milliseconds: 800))..forward().whenComplete(widget.onDone);
 
   @override
   void dispose() {
@@ -420,13 +424,18 @@ class _FlyStarState extends State<_FlyStar> with SingleTickerProviderStateMixin 
             sc = 1.3 + (.8 - 1.3) * u;
             rot = 160 + 160 * u;
           }
-          return Stack(children: [
-            Positioned(
-              left: p.dx - 12,
-              top: p.dy - 12,
-              child: Transform.rotate(angle: rot * math.pi / 180, child: Transform.scale(scale: sc, child: SvgPicture.string(kStarSvg, width: 24, height: 24))),
-            ),
-          ]);
+          return Stack(
+            children: [
+              Positioned(
+                left: p.dx - 12,
+                top: p.dy - 12,
+                child: Transform.rotate(
+                  angle: rot * math.pi / 180,
+                  child: Transform.scale(scale: sc, child: SvgPicture.string(kStarSvg, width: 24, height: 24)),
+                ),
+              ),
+            ],
+          );
         },
       ),
     );
@@ -445,8 +454,7 @@ class _Sparks extends StatefulWidget {
 
 class _SparksState extends State<_Sparks> with SingleTickerProviderStateMixin {
   final _r = math.Random();
-  late final List<(double, double, double)> parts =
-      List.generate(widget.n, (_) => (_r.nextDouble() * math.pi * 2, 22 + _r.nextDouble() * 30, .7 + _r.nextDouble() * .3));
+  late final List<(double, double, double)> parts = List.generate(widget.n, (_) => (_r.nextDouble() * math.pi * 2, 22 + _r.nextDouble() * 30, .7 + _r.nextDouble() * .3));
   late final AnimationController c = AnimationController(vsync: this, duration: const Duration(milliseconds: 950))..forward().whenComplete(widget.onDone);
 
   @override
@@ -457,35 +465,41 @@ class _SparksState extends State<_Sparks> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) => IgnorePointer(
-        child: AnimatedBuilder(
-          animation: c,
-          builder: (context, _) => Stack(
-            children: [
-              for (final p in parts)
-                Builder(builder: (_) {
-                  final k = (c.value / p.$3).clamp(0.0, 1.0);
-                  final e = const Cubic(.2, .8, .3, 1).transform(k);
-                  final pos = widget.at + Offset(math.cos(p.$1), math.sin(p.$1)) * p.$2 * e;
-                  return Positioned(
-                    left: pos.dx - 3.5,
-                    top: pos.dy - 3.5,
-                    child: Opacity(
-                      opacity: 1 - k,
-                      child: Transform.scale(
-                        scale: 1 - k,
-                        child: Container(
-                          width: 7,
-                          height: 7,
-                          decoration: BoxDecoration(shape: BoxShape.circle, color: widget.color, boxShadow: [BoxShadow(color: widget.color.withValues(alpha: .6), blurRadius: 8, spreadRadius: 1)]),
+    child: AnimatedBuilder(
+      animation: c,
+      builder: (context, _) => Stack(
+        children: [
+          for (final p in parts)
+            Builder(
+              builder: (_) {
+                final k = (c.value / p.$3).clamp(0.0, 1.0);
+                final e = const Cubic(.2, .8, .3, 1).transform(k);
+                final pos = widget.at + Offset(math.cos(p.$1), math.sin(p.$1)) * p.$2 * e;
+                return Positioned(
+                  left: pos.dx - 3.5,
+                  top: pos.dy - 3.5,
+                  child: Opacity(
+                    opacity: 1 - k,
+                    child: Transform.scale(
+                      scale: 1 - k,
+                      child: Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: widget.color,
+                          boxShadow: [BoxShadow(color: widget.color.withValues(alpha: .6), blurRadius: 8, spreadRadius: 1)],
                         ),
                       ),
                     ),
-                  );
-                }),
-            ],
-          ),
-        ),
-      );
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+    ),
+  );
 }
 
 /// A one-shot "bump" (scale 1.18 at 40%, spring) driven by a counter.
@@ -514,14 +528,14 @@ class _BumpState extends State<Bump> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: c,
-        builder: (_, child) {
-          final v = c.value;
-          final s = v < .4 ? 1 + (widget.peak - 1) * Curves.easeOut.transform(v / .4) : widget.peak - (widget.peak - 1) * Motion.spring.transform((v - .4) / .6);
-          return Transform.scale(scale: s, child: child);
-        },
-        child: widget.child,
-      );
+    animation: c,
+    builder: (_, child) {
+      final v = c.value;
+      final s = v < .4 ? 1 + (widget.peak - 1) * Curves.easeOut.transform(v / .4) : widget.peak - (widget.peak - 1) * Motion.spring.transform((v - .4) / .6);
+      return Transform.scale(scale: s, child: child);
+    },
+    child: widget.child,
+  );
 }
 
 /// Pulsing ring (v7 .tapme ping / .sc.cold ring).
@@ -543,18 +557,23 @@ class _PingState extends State<Ping> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: c,
-        builder: (_, _) {
-          final k = (c.value / .7).clamp(0.0, 1.0);
-          return Container(
-            width: widget.size,
-            height: widget.size,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: widget.color,
-              boxShadow: [BoxShadow(color: widget.color.withValues(alpha: .6 * (1 - k)), spreadRadius: 10 * k)],
+    animation: c,
+    builder: (_, _) {
+      final k = (c.value / .7).clamp(0.0, 1.0);
+      return Container(
+        width: widget.size,
+        height: widget.size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: widget.color,
+          boxShadow: [
+            BoxShadow(
+              color: widget.color.withValues(alpha: .6 * (1 - k)),
+              spreadRadius: 10 * k,
             ),
-          );
-        },
+          ],
+        ),
       );
+    },
+  );
 }

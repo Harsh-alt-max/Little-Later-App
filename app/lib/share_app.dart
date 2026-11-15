@@ -109,6 +109,8 @@ class _ShareAppState extends State<ShareApp> implements AppActions {
   Future<void> signOut({bool delete = false}) async {}
   @override
   void startSignIn() {}
+  @override
+  Future<void> refresh() async {}
 
   @override
   Widget build(BuildContext context) {
@@ -127,40 +129,52 @@ class _ShareAppState extends State<ShareApp> implements AppActions {
         child: Scaffold(
           backgroundColor: Colors.transparent,
           resizeToAvoidBottomInset: false,
-          body: Stack(children: [
-            Positioned.fill(
-              child: GestureDetector(
-                onTap: close,
-                child: AnimatedContainer(duration: const Duration(milliseconds: 250), color: Colors.black.withValues(alpha: _shown ? .35 : 0)),
+          body: Stack(
+            children: [
+              Positioned.fill(
+                child: GestureDetector(
+                  onTap: close,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    color: Colors.black.withValues(alpha: _shown ? .35 : 0),
+                  ),
+                ),
               ),
-            ),
-            AnimatedPositioned(
-              duration: const Duration(milliseconds: 450),
-              curve: Motion.smooth,
-              left: 0,
-              right: 0,
-              bottom: _shown ? 0 : -700,
-              child: _joinMsg != null ? _joinCard(ll) : Builder(builder: (_) => QuickSave(text: widget.text, onDone: close, onSaved: _afterSave)),
-            ),
-            ToastView(controller: _toast, onUndo: () {}),
-          ]),
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 450),
+                curve: Motion.smooth,
+                left: 0,
+                right: 0,
+                bottom: _shown ? 0 : -700,
+                child: _joinMsg != null
+                    ? _joinCard(ll)
+                    : Builder(
+                        builder: (_) => QuickSave(text: widget.text, onDone: close, onSaved: _afterSave),
+                      ),
+              ),
+              ToastView(controller: _toast, onUndo: () {}),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _joinCard(LL ll) => Padding(
-        padding: EdgeInsets.fromLTRB(10, 0, 10, 12 + MediaQueryData.fromView(View.of(context)).padding.bottom),
-        child: Container(
-          padding: const EdgeInsets.all(22),
-          decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(30)),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            LLIcon('users', size: 30, color: ll.blueInk),
-            const SizedBox(height: 10),
-            Text(_joinMsg!, textAlign: TextAlign.center, style: t(16, FontWeight.w800, ll.ink)),
-            const SizedBox(height: 14),
-            BigButton(label: 'Close', height: 50, dark: true, onTap: close),
-          ]),
-        ),
-      );
+    padding: EdgeInsets.fromLTRB(10, 0, 10, 12 + MediaQueryData.fromView(View.of(context)).padding.bottom),
+    child: Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(30)),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          LLIcon('users', size: 30, color: ll.blueInk),
+          const SizedBox(height: 10),
+          Text(_joinMsg!, textAlign: TextAlign.center, style: t(16, FontWeight.w800, ll.ink)),
+          const SizedBox(height: 14),
+          BigButton(label: 'Close', height: 50, dark: true, onTap: close),
+        ],
+      ),
+    ),
+  );
 }

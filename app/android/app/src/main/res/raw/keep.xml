@@ -2,4 +2,4 @@
 <!-- Resources only referenced from Dart (by name). Without this the release
      build's resource shrinker deletes them and notifications fail to start. -->
 <resources xmlns:tools="http://schemas.android.com/tools"
-    tools:keep="@drawable/ic_stat_ll,@drawable/ic_launcher_foreground,@mipmap/ic_launcher" />
+    tools:keep="@raw/ll_tone_1,@raw/ll_tone_2,@raw/ll_tone_3,@drawable/ic_stat_ll,@drawable/ic_launcher_foreground,@mipmap/ic_launcher" />

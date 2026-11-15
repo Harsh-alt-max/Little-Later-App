@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
 import 'package:material_ui/material_ui.dart';
 
 import '../config.dart';
@@ -15,7 +13,9 @@ import '../theme/tokens.dart';
 import '../widgets/common.dart';
 import '../widgets/icons.dart';
 import '../widgets/kit.dart';
+import '../widgets/cover.dart';
 import '../services/haptics.dart';
+import '../services/link_meta.dart';
 
 // =============================================================================
 // Link understanding (v7 KIND/parse) + real page titles
@@ -24,6 +24,7 @@ class LinkInfo {
   LinkInfo({required this.url, required this.domain, required this.title, required this.kind, this.folderKind, required this.line});
   final String url, domain, kind, line;
   String title;
+  String image = '';
   final String? folderKind;
 }
 
@@ -49,37 +50,15 @@ LinkInfo? parseLink(String raw) {
   var t = seg.isEmpty ? '' : Uri.decodeComponent(seg.last).replaceAll(RegExp(r'[-_+]'), ' ').replaceAll(RegExp(r'\.\w+$'), '').trim();
   if (t.length < 3 || RegExp(r'^[\w]{8,}$').hasMatch(t) && !t.contains(' ')) t = '';
   final k = _kinds.where((k) => RegExp(k.$1).hasMatch('$d${u.path}')).firstOrNull;
-  return LinkInfo(
-    url: s,
-    domain: d,
-    title: t.isEmpty ? 'Link from $d' : t[0].toUpperCase() + t.substring(1),
-    kind: k?.$2 ?? 'Link',
-    folderKind: k?.$3,
-    line: k?.$4 ?? 'Nice find!',
-  );
+  return LinkInfo(url: s, domain: d, title: t.isEmpty ? 'Link from $d' : t[0].toUpperCase() + t.substring(1), kind: k?.$2 ?? 'Link', folderKind: k?.$3, line: k?.$4 ?? 'Nice find!');
 }
 
 /// Best-effort real title (YouTube oEmbed, else og:title / <title>).
+/// Fetch the real title and cover image into [info]. Returns the title.
 Future<String?> fetchTitle(LinkInfo info) async {
-  try {
-    if (RegExp('youtube|youtu.be').hasMatch(info.domain)) {
-      final r = await http.get(Uri.parse('https://www.youtube.com/oembed?format=json&url=${Uri.encodeComponent(info.url)}')).timeout(const Duration(seconds: 5));
-      if (r.statusCode == 200) {
-        final tt = (jsonDecode(r.body) as Map)['title'] as String?;
-        return tt == null ? null : cleanTitle(tt);
-      }
-    }
-    final r = await http.get(Uri.parse(info.url), headers: {'User-Agent': 'Mozilla/5.0 (Linux; Android 14) LittleLater/1.4'}).timeout(const Duration(seconds: 5));
-    if (r.statusCode != 200) return null;
-    final body = r.body.length > 200000 ? r.body.substring(0, 200000) : r.body;
-    final og = RegExp(r'''<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)''', caseSensitive: false).firstMatch(body)?.group(1) ??
-        RegExp(r'''<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title''', caseSensitive: false).firstMatch(body)?.group(1);
-    final tt = og ?? RegExp(r'<title[^>]*>([^<]{2,200})</title>', caseSensitive: false).firstMatch(body)?.group(1);
-    if (tt == null) return null;
-    return cleanTitle(tt);
-  } catch (_) {
-    return null;
-  }
+  final m = await fetchMeta(info.url);
+  if (m.image != null) info.image = m.image!;
+  return m.title;
 }
 
 /// Folder suggestion for a link kind ('hobby', 'work', …) among the user's folders.
@@ -108,7 +87,11 @@ DateTime defaultWhen(When k) {
 
 When whenKindOf(DateTime d) {
   final x = fmtDay(d);
-  return x == 'Today' ? When.today : x == 'Tomorrow' ? When.tomorrow : When.date;
+  return x == 'Today'
+      ? When.today
+      : x == 'Tomorrow'
+      ? When.tomorrow
+      : When.date;
 }
 
 class WhenChoice {
@@ -134,7 +117,20 @@ class WhenTiles extends StatelessWidget {
       return;
     }
     final init = value.kind == k && value.at != null ? value.at! : (k == When.date ? defaultWhen(When.tomorrow).add(const Duration(days: 1)) : defaultWhen(k));
-    final d = await pickTime(context, initial: init, lockDay: k == When.today ? 0 : k == When.tomorrow ? 1 : null, title: k == When.today ? 'Today at…' : k == When.tomorrow ? 'Tomorrow at…' : 'Pick a day and time');
+    final d = await pickTime(
+      context,
+      initial: init,
+      lockDay: k == When.today
+          ? 0
+          : k == When.tomorrow
+          ? 1
+          : null,
+      title: k == When.today
+          ? 'Today at…'
+          : k == When.tomorrow
+          ? 'Tomorrow at…'
+          : 'Pick a day and time',
+    );
     if (d != null) onChanged(WhenChoice(whenKindOf(d), d));
   }
 
@@ -155,32 +151,51 @@ class WhenTiles extends StatelessWidget {
           duration: const Duration(milliseconds: 250),
           padding: EdgeInsets.all(compact ? 8 : 10),
           decoration: BoxDecoration(color: on ? ll.blue : ll.surface2, borderRadius: BorderRadius.circular(compact ? 18 : 22)),
-          child: Row(children: [
-            Container(
-              width: compact ? 34 : 40,
-              height: compact ? 34 : 40,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: on ? Colors.white.withValues(alpha: .2) : ll.surface),
-              child: LLIcon(icon, size: compact ? 16 : 19, color: on ? Colors.white : ll.ink2),
-            ),
-            SizedBox(width: compact ? 9 : 11),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: t(compact ? 13.5 : 14.5, FontWeight.w800, on ? Colors.white : ll.ink)),
-                Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: t(12, FontWeight.w600, on ? Colors.white.withValues(alpha: .8) : ll.ink3)),
-              ]),
-            ),
-          ]),
+          child: Row(
+            children: [
+              Container(
+                width: compact ? 34 : 40,
+                height: compact ? 34 : 40,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: on ? Colors.white.withValues(alpha: .2) : ll.surface),
+                child: LLIcon(icon, size: compact ? 16 : 19, color: on ? Colors.white : ll.ink2),
+              ),
+              SizedBox(width: compact ? 9 : 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: t(compact ? 13.5 : 14.5, FontWeight.w800, on ? Colors.white : ll.ink)),
+                    Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: t(12, FontWeight.w600, on ? Colors.white.withValues(alpha: .8) : ll.ink3)),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
 
     final gap = compact ? 8.0 : 10.0;
-    return Column(children: [
-      Row(children: [Expanded(child: tile(When.today, 'Today', 'sun')), SizedBox(width: gap), Expanded(child: tile(When.tomorrow, 'Tomorrow', 'sunrise'))]),
-      SizedBox(height: gap),
-      Row(children: [Expanded(child: tile(When.date, 'Pick date', 'clock')), SizedBox(width: gap), Expanded(child: tile(When.none, noneLabel, 'off'))]),
-    ]);
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: tile(When.today, 'Today', 'sun')),
+            SizedBox(width: gap),
+            Expanded(child: tile(When.tomorrow, 'Tomorrow', 'sunrise')),
+          ],
+        ),
+        SizedBox(height: gap),
+        Row(
+          children: [
+            Expanded(child: tile(When.date, 'Pick date', 'clock')),
+            SizedBox(width: gap),
+            Expanded(child: tile(When.none, noneLabel, 'off')),
+          ],
+        ),
+      ],
+    );
   }
 }
 
@@ -400,7 +415,7 @@ class _SaveSheetState extends State<_SaveSheet> {
     switch (_mode) {
       case SaveMode.link:
         final info = _info!;
-        it = Item(id: id, kind: ItemKind.link, title: info.title, folder: _folder, url: info.url, reminder: d?.millisecondsSinceEpoch ?? 0, note: _note.text.trim());
+        it = Item(id: id, kind: ItemKind.link, title: info.title, folder: _folder, url: info.url, thumbnail: info.image, reminder: d?.millisecondsSinceEpoch ?? 0, note: _note.text.trim());
         msg = 'Saved!';
       case SaveMode.reminder:
         it = Item(id: id, kind: ItemKind.reminder, title: _rem.text.trim(), folder: _folder, reminder: d?.millisecondsSinceEpoch ?? 0, note: _note.text.trim());
@@ -450,207 +465,279 @@ class _SaveSheetState extends State<_SaveSheet> {
         gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, stops: const [0, .45], colors: [ll.headB, ll.bg]),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Stack(children: [
-        Positioned(
-          top: -80,
-          left: 0,
-          right: 0,
-          height: 320,
-          child: DecoratedBox(decoration: BoxDecoration(gradient: RadialGradient(colors: [ll.headA, ll.headA.withValues(alpha: 0)], stops: const [0, .7]))),
-        ),
-        Column(children: [
-          // .sh-top
-          SizedBox(
-            height: kb > 0 ? 120 : 236,
-            child: Stack(clipBehavior: Clip.none, children: [
-              Positioned(top: 10, left: 0, right: 0, child: Center(child: Container(width: 40, height: 5, decoration: BoxDecoration(color: ll.inkMix(.18), borderRadius: BorderRadius.circular(9))))),
-              Positioned(left: 18, top: 22, child: Circ(icon: 'x', size: 44, label: 'Close', onTap: () => Navigator.pop(context))),
-              if (kb == 0) ...[
-                const Positioned(left: 44, top: 120, child: _Floaty(size: 16)),
-                const Positioned(right: 46, top: 150, child: _Floaty(size: 12, delay: 2)),
-                const Positioned(right: 70, top: 72, child: _Floaty(size: 9, delay: 4)),
-              ],
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 300),
-                left: 0,
-                right: 0,
-                top: kb > 0 ? 14 : 36,
-                child: Center(
-                  child: GestureDetector(
-                    onTap: () {
-                      _m.play(MascotAct.squish);
-                      _m.mood(Mood.happy, const Duration(milliseconds: 700));
-                      s.buzz(0);
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      width: kb > 0 ? 92 : 170,
-                      height: kb > 0 ? 100 : 186,
-                      child: MascotView(stage: st.level.n, controller: _m, style: st.mascotStyle, outfit: st.outfitNow),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: MediaQuery.sizeOf(context).width / 2 + (kb > 0 ? 40 : 52),
-                top: kb > 0 ? 10 : 40,
-                child: SpeechBubble(controller: _bubble, tailLeft: true, wrap: true, maxWidth: MediaQuery.sizeOf(context).width / 2 - 64),
-              ),
-            ]),
-          ),
-          // .sh-body
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(color: ll.surface, borderRadius: const BorderRadius.vertical(top: Radius.circular(34))),
-              child: ListView(
-                padding: EdgeInsets.fromLTRB(20, 24, 20, 24 + (kb > 0 ? kb : bottom)),
-                children: [
-                  Segmented(labels: const ['Link', 'Reminder', 'To-do'], icons: const ['link', 'bell', 'check'], index: _mode.index, onChanged: (i) => _setMode(SaveMode.values[i])),
-                  const SizedBox(height: 16),
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    transitionBuilder: (c, a) => FadeTransition(opacity: a, child: SlideTransition(position: Tween(begin: const Offset(0, .1), end: Offset.zero).animate(a), child: c)),
-                    child: KeyedSubtree(key: ValueKey(_mode), child: _fields(ll)),
-                  ),
-                  if (_mode != SaveMode.todo)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: AnimatedSize(
-                        duration: const Duration(milliseconds: 300),
-                        curve: Motion.smooth,
-                        child: _noteOpen
-                            ? LLInput(controller: _note, hint: 'Add a note (ingredients, why you saved it…)', icon: 'pen', height: 54, autofocus: true, maxLength: 200)
-                            : Align(
-                                alignment: Alignment.centerLeft,
-                                child: Tap(
-                                  onTap: () => setState(() => _noteOpen = true),
-                                  child: Padding(
-                                    padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
-                                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                      LLIcon('plus', size: 16, color: ll.blueInk),
-                                      const SizedBox(width: 6),
-                                      Text('Add a note', style: t(14, FontWeight.w800, ll.blueInk)),
-                                    ]),
-                                  ),
-                                ),
-                              ),
-                      ),
-                    ),
-                  Lab('Folder', hint: _suggested ? 'Suggested' : ''),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    clipBehavior: Clip.none,
-                    child: Row(children: [
-                      for (final f in st.folders) ...[
-                        FolderPill(
-                          icon: f.iconKey,
-                          label: f.name,
-                          on: f.name == _folder,
-                          onTap: () {
-                            s.buzz(0);
-                            setState(() {
-                              _folder = f.name;
-                              _suggested = false;
-                            });
-                            _bubble.say('${f.name} it is.', 0);
-                          },
-                        ),
-                        const SizedBox(width: 10),
-                      ],
-                      FolderPill(icon: 'plus', label: 'New', dashed: true, onTap: _newFolder),
-                    ]),
-                  ),
-                  Lab(mode.$3),
-                  WhenTiles(value: _when, onChanged: _setWhen, noneLabel: _mode == SaveMode.todo ? 'No date' : 'No reminder'),
-                  const SizedBox(height: 22),
-                  BigButton(label: mode.$2, xp: 5, enabled: _valid, onTap: _save),
-                ],
+      child: Stack(
+        children: [
+          Positioned(
+            top: -80,
+            left: 0,
+            right: 0,
+            height: 320,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(colors: [ll.headA, ll.headA.withValues(alpha: 0)], stops: const [0, .7]),
               ),
             ),
           ),
-        ]),
-      ]),
+          Column(
+            children: [
+              // .sh-top
+              SizedBox(
+                height: kb > 0 ? 120 : 236,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Positioned(
+                      top: 10,
+                      left: 0,
+                      right: 0,
+                      child: Center(
+                        child: Container(
+                          width: 40,
+                          height: 5,
+                          decoration: BoxDecoration(color: ll.inkMix(.18), borderRadius: BorderRadius.circular(9)),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 18,
+                      top: 22,
+                      child: Circ(icon: 'x', size: 44, label: 'Close', onTap: () => Navigator.pop(context)),
+                    ),
+                    if (kb == 0) ...[
+                      const Positioned(left: 44, top: 120, child: _Floaty(size: 16)),
+                      const Positioned(right: 46, top: 150, child: _Floaty(size: 12, delay: 2)),
+                      const Positioned(right: 70, top: 72, child: _Floaty(size: 9, delay: 4)),
+                    ],
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 300),
+                      left: 0,
+                      right: 0,
+                      top: kb > 0 ? 14 : 36,
+                      child: Center(
+                        child: GestureDetector(
+                          onTap: () {
+                            _m.play(MascotAct.squish);
+                            _m.mood(Mood.happy, const Duration(milliseconds: 700));
+                            s.buzz(0);
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+                            width: kb > 0 ? 92 : 170,
+                            height: kb > 0 ? 100 : 186,
+                            child: MascotView(stage: st.level.n, controller: _m, style: st.mascotStyle, outfit: st.outfitNow),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: MediaQuery.sizeOf(context).width / 2 + (kb > 0 ? 40 : 52),
+                      top: kb > 0 ? 10 : 40,
+                      child: SpeechBubble(controller: _bubble, tailLeft: true, wrap: true, maxWidth: MediaQuery.sizeOf(context).width / 2 - 64),
+                    ),
+                  ],
+                ),
+              ),
+              // .sh-body
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: ll.surface,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(34)),
+                  ),
+                  child: ListView(
+                    padding: EdgeInsets.fromLTRB(20, 24, 20, 24 + (kb > 0 ? kb : bottom)),
+                    children: [
+                      Segmented(labels: const ['Link', 'Reminder', 'To-do'], icons: const ['link', 'bell', 'check'], index: _mode.index, onChanged: (i) => _setMode(SaveMode.values[i])),
+                      const SizedBox(height: 16),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        transitionBuilder: (c, a) => FadeTransition(
+                          opacity: a,
+                          child: SlideTransition(
+                            position: Tween(begin: const Offset(0, .1), end: Offset.zero).animate(a),
+                            child: c,
+                          ),
+                        ),
+                        child: KeyedSubtree(key: ValueKey(_mode), child: _fields(ll)),
+                      ),
+                      if (_mode != SaveMode.todo)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: AnimatedSize(
+                            duration: const Duration(milliseconds: 300),
+                            curve: Motion.smooth,
+                            child: _noteOpen
+                                ? LLInput(controller: _note, hint: 'Add a note (ingredients, why you saved it…)', icon: 'pen', height: 54, autofocus: true, maxLength: 200)
+                                : Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Tap(
+                                      onTap: () => setState(() => _noteOpen = true),
+                                      child: Padding(
+                                        padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            LLIcon('plus', size: 16, color: ll.blueInk),
+                                            const SizedBox(width: 6),
+                                            Text('Add a note', style: t(14, FontWeight.w800, ll.blueInk)),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      Lab('Folder', hint: _suggested ? 'Suggested' : ''),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        clipBehavior: Clip.none,
+                        child: Row(
+                          children: [
+                            for (final f in st.folders) ...[
+                              FolderPill(
+                                icon: f.iconKey,
+                                label: f.name,
+                                on: f.name == _folder,
+                                onTap: () {
+                                  s.buzz(0);
+                                  setState(() {
+                                    _folder = f.name;
+                                    _suggested = false;
+                                  });
+                                  _bubble.say('${f.name} it is.', 0);
+                                },
+                              ),
+                              const SizedBox(width: 10),
+                            ],
+                            FolderPill(icon: 'plus', label: 'New', dashed: true, onTap: _newFolder),
+                          ],
+                        ),
+                      ),
+                      Lab(mode.$3),
+                      WhenTiles(value: _when, onChanged: _setWhen, noneLabel: _mode == SaveMode.todo ? 'No date' : 'No reminder'),
+                      const SizedBox(height: 22),
+                      BigButton(label: mode.$2, xp: 5, enabled: _valid, onTap: _save),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
   Widget _fields(LL ll) {
     switch (_mode) {
       case SaveMode.link:
-        return Column(children: [
-          LLInput(
-            controller: _link,
-            hint: 'Paste a link',
-            icon: 'link',
-            keyboard: TextInputType.url,
-            onChanged: (v) => _onLink(v),
-            trailing: Tap(
-              onTap: _paste,
-              child: Container(
-                height: 44,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                decoration: BoxDecoration(color: ll.ink, borderRadius: BorderRadius.circular(14)),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.content_paste_rounded, size: 16, color: ll.onInk),
-                  const SizedBox(width: 6),
-                  Text('Paste', style: t(13.5, FontWeight.w800, ll.onInk)),
-                ]),
+        return Column(
+          children: [
+            LLInput(
+              controller: _link,
+              hint: 'Paste a link',
+              icon: 'link',
+              keyboard: TextInputType.url,
+              onChanged: (v) => _onLink(v),
+              trailing: Tap(
+                onTap: _paste,
+                child: Container(
+                  height: 44,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(color: ll.ink, borderRadius: BorderRadius.circular(14)),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.content_paste_rounded, size: 16, color: ll.onInk),
+                      const SizedBox(width: 6),
+                      Text('Paste', style: t(13.5, FontWeight.w800, ll.onInk)),
+                    ],
+                  ),
+                ),
               ),
             ),
-          ),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 450),
-            curve: Motion.smooth,
-            child: _info == null ? const SizedBox(width: double.infinity) : Padding(padding: const EdgeInsets.only(top: 12), child: LinkPreview(info: _info!, loading: _loadingTitle)),
-          ),
-        ]);
+            AnimatedSize(
+              duration: const Duration(milliseconds: 450),
+              curve: Motion.smooth,
+              child: _info == null
+                  ? const SizedBox(width: double.infinity)
+                  : Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: LinkPreview(info: _info!, loading: _loadingTitle),
+                    ),
+            ),
+          ],
+        );
       case SaveMode.reminder:
         return LLInput(controller: _rem, focusNode: _remF, hint: 'Remind me to…', icon: 'bell', maxLength: 80, onChanged: (_) => setState(() {}));
       case SaveMode.todo:
-        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          LLInput(controller: _todo, focusNode: _todoF, hint: 'What needs doing?', icon: 'check', maxLength: 80, onChanged: (_) => setState(() {})),
-          const SizedBox(height: 10),
-          for (var i = 0; i < _steps.length; i++)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
-                decoration: BoxDecoration(color: ll.surface2, borderRadius: BorderRadius.circular(14)),
-                child: Row(children: [
-                  Container(width: 16, height: 16, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: ll.ink3, width: 1.6))),
-                  const SizedBox(width: 10),
-                  Expanded(child: Text(_steps[i], maxLines: 1, overflow: TextOverflow.ellipsis, style: t(14, FontWeight.w600, ll.ink))),
-                  Tap(
-                    onTap: () => setState(() => _steps.removeAt(i)),
-                    semanticLabel: 'Remove step',
-                    child: SizedBox(width: 30, height: 30, child: Center(child: LLIcon('x', size: 15, color: ll.ink3))),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            LLInput(controller: _todo, focusNode: _todoF, hint: 'What needs doing?', icon: 'check', maxLength: 80, onChanged: (_) => setState(() {})),
+            const SizedBox(height: 10),
+            for (var i = 0; i < _steps.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+                  decoration: BoxDecoration(color: ll.surface2, borderRadius: BorderRadius.circular(14)),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 16,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: ll.ink3, width: 1.6),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(_steps[i], maxLines: 1, overflow: TextOverflow.ellipsis, style: t(14, FontWeight.w600, ll.ink)),
+                      ),
+                      Tap(
+                        onTap: () => setState(() => _steps.removeAt(i)),
+                        semanticLabel: 'Remove step',
+                        child: SizedBox(
+                          width: 30,
+                          height: 30,
+                          child: Center(child: LLIcon('x', size: 15, color: ll.ink3)),
+                        ),
+                      ),
+                    ],
                   ),
-                ]),
-              ),
-            ),
-          Container(
-            height: 46,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), border: Border.all(color: ll.line, width: 1.5)),
-            child: Row(children: [
-              LLIcon('plus', size: 17, color: ll.ink3),
-              const SizedBox(width: 10),
-              Expanded(
-                child: TextField(
-                  controller: _step,
-                  focusNode: _stepF,
-                  maxLength: 60,
-                  textInputAction: TextInputAction.next,
-                  onSubmitted: (_) => _addStep(),
-                  style: t(14.5, FontWeight.w600, ll.ink),
-                  decoration: InputDecoration(isCollapsed: true, border: InputBorder.none, counterText: '', hintText: 'Add a step, then press enter', hintStyle: t(14.5, FontWeight.w600, ll.ink3)),
                 ),
               ),
-            ]),
-          ),
-        ]);
+            Container(
+              height: 46,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: ll.line, width: 1.5),
+              ),
+              child: Row(
+                children: [
+                  LLIcon('plus', size: 17, color: ll.ink3),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: _step,
+                      focusNode: _stepF,
+                      maxLength: 60,
+                      textInputAction: TextInputAction.next,
+                      onSubmitted: (_) => _addStep(),
+                      style: t(14.5, FontWeight.w600, ll.ink),
+                      decoration: InputDecoration(isCollapsed: true, border: InputBorder.none, counterText: '', hintText: 'Add a step, then press enter', hintStyle: t(14.5, FontWeight.w600, ll.ink3)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
     }
   }
-
 }
 
 class _Floaty extends StatefulWidget {
@@ -677,15 +764,18 @@ class _FloatyState extends State<_Floaty> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: c,
-        builder: (_, _) {
-          final k = (1 - (c.value * 2 - 1).abs());
-          return Transform.translate(
-            offset: Offset(0, -10 * k),
-            child: Transform.rotate(angle: .31 * k, child: Icon(Icons.auto_awesome, size: widget.size, color: LL.of(context).blue.withValues(alpha: .55))),
-          );
-        },
+    animation: c,
+    builder: (_, _) {
+      final k = (1 - (c.value * 2 - 1).abs());
+      return Transform.translate(
+        offset: Offset(0, -10 * k),
+        child: Transform.rotate(
+          angle: .31 * k,
+          child: Icon(Icons.auto_awesome, size: widget.size, color: LL.of(context).blue.withValues(alpha: .55)),
+        ),
       );
+    },
+  );
 }
 
 /// .pv link preview card.
@@ -699,32 +789,31 @@ class LinkPreview extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(color: ll.blueSoft, borderRadius: BorderRadius.circular(20)),
-      child: Row(children: [
-        Container(
-          width: 44,
-          height: 44,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(14)),
-          child: Text(info.domain.isEmpty ? '?' : info.domain[0].toUpperCase(), style: t(16, FontWeight.w800, ll.blueInk)),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            AnimatedOpacity(
-              opacity: loading ? .55 : 1,
-              duration: const Duration(milliseconds: 250),
-              child: Text(info.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: t(14.5, FontWeight.w800, ll.ink, h: 1.3)),
+      child: Row(
+        children: [
+          Cover(url: info.image, letter: info.domain, width: 56, height: 56, radius: 14),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AnimatedOpacity(
+                  opacity: loading ? .55 : 1,
+                  duration: const Duration(milliseconds: 250),
+                  child: Text(info.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: t(14.5, FontWeight.w800, ll.ink, h: 1.3)),
+                ),
+                Text(info.domain, style: t(12.5, FontWeight.w600, ll.ink2)),
+              ],
             ),
-            Text(info.domain, style: t(12.5, FontWeight.w600, ll.ink2)),
-          ]),
-        ),
-        const SizedBox(width: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(99)),
-          child: Text(info.kind, style: t(12, FontWeight.w800, ll.blueInk)),
-        ),
-      ]),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(99)),
+            child: Text(info.kind, style: t(12, FontWeight.w800, ll.blueInk)),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -735,7 +824,10 @@ class LinkPreview extends StatelessWidget {
 /// Day strip (next 3 months) + hour/minute/am-pm wheels. [lockDay] 0/1 hides
 /// the strip and fixes the day to today/tomorrow.
 Future<DateTime?> pickTime(BuildContext context, {required DateTime initial, int? lockDay, String title = 'Pick a time'}) {
-  return showLLSheet<DateTime>(context, builder: (_) => _TimePicker(initial: initial, lockDay: lockDay, title: title));
+  return showLLSheet<DateTime>(
+    context,
+    builder: (_) => _TimePicker(initial: initial, lockDay: lockDay, title: title),
+  );
 }
 
 class _TimePicker extends StatefulWidget {
@@ -830,68 +922,100 @@ class _TimePickerState extends State<_TimePicker> {
   Widget build(BuildContext context) {
     final ll = LL.of(context);
     final bad = _sel.isBefore(AppStore.now());
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      SheetTitle(widget.title, action: 'Reset', onAction: _reset),
-      if (widget.lockDay == null) SizedBox(
-        height: 74,
-        child: ListView.separated(
-          controller: _strip,
-          scrollDirection: Axis.horizontal,
-          clipBehavior: Clip.none,
-          itemCount: days.length,
-          separatorBuilder: (_, _) => const SizedBox(width: 8),
-          itemBuilder: (_, i) {
-            final on = i == day;
-            final d = days[i];
-            return Tap(
-              onTap: () {
-                Haptics.tick();
-                setState(() => day = i);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SheetTitle(widget.title, action: 'Reset', onAction: _reset),
+        if (widget.lockDay == null)
+          SizedBox(
+            height: 74,
+            child: ListView.separated(
+              controller: _strip,
+              scrollDirection: Axis.horizontal,
+              clipBehavior: Clip.none,
+              itemCount: days.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (_, i) {
+                final on = i == day;
+                final d = days[i];
+                return Tap(
+                  onTap: () {
+                    Haptics.tick();
+                    setState(() => day = i);
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    width: 58,
+                    height: 70,
+                    decoration: BoxDecoration(color: on ? ll.blue : ll.surface2, borderRadius: BorderRadius.circular(20), boxShadow: on ? ll.blueGlow(.32, 22) : null),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          i == 0
+                              ? 'Today'
+                              : i == 1
+                              ? 'Tmrw'
+                              : d.day == 1
+                              ? _mon[d.month - 1]
+                              : _dow[d.weekday - 1],
+                          style: t(11.5, FontWeight.w800, on ? Colors.white70 : ll.ink3),
+                        ),
+                        const SizedBox(height: 3),
+                        Text('${d.day}', style: t(20, FontWeight.w800, on ? Colors.white : ll.ink)),
+                      ],
+                    ),
+                  ),
+                );
               },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                width: 58,
-                height: 70,
-                decoration: BoxDecoration(color: on ? ll.blue : ll.surface2, borderRadius: BorderRadius.circular(20), boxShadow: on ? ll.blueGlow(.32, 22) : null),
-                child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Text(i == 0 ? 'Today' : i == 1 ? 'Tmrw' : d.day == 1 ? _mon[d.month - 1] : _dow[d.weekday - 1], style: t(11.5, FontWeight.w800, on ? Colors.white70 : ll.ink3)),
-                  const SizedBox(height: 3),
-                  Text('${d.day}', style: t(20, FontWeight.w800, on ? Colors.white : ll.ink)),
-                ]),
+            ),
+          ),
+        const SizedBox(height: 16),
+        ShaderMask(
+          shaderCallback: (r) => const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Colors.transparent, Colors.black, Colors.black, Colors.transparent],
+            stops: [0, .3, .7, 1],
+          ).createShader(r),
+          blendMode: BlendMode.dstIn,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                height: 44,
+                decoration: BoxDecoration(color: ll.surface2, borderRadius: BorderRadius.circular(16)),
               ),
-            );
-          },
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _wheel(_h, [for (var i = 1; i <= 12; i++) '$i'], 78, (i) => hh = i + 1, hh - 1),
+                  Text(':', style: t(24, FontWeight.w800, ll.ink)),
+                  _wheel(_m, [for (var i = 0; i < 12; i++) (i * 5).toString().padLeft(2, '0')], 78, (i) => mm = i * 5, mm ~/ 5),
+                  _wheel(_a, const ['am', 'pm'], 64, (i) => ap = i, ap, fs: 17),
+                ],
+              ),
+            ],
+          ),
         ),
-      ),
-      const SizedBox(height: 16),
-      ShaderMask(
-        shaderCallback: (r) => const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, Colors.black, Colors.black, Colors.transparent], stops: [0, .3, .7, 1]).createShader(r),
-        blendMode: BlendMode.dstIn,
-        child: Stack(alignment: Alignment.center, children: [
-          Container(height: 44, decoration: BoxDecoration(color: ll.surface2, borderRadius: BorderRadius.circular(16))),
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            _wheel(_h, [for (var i = 1; i <= 12; i++) '$i'], 78, (i) => hh = i + 1, hh - 1),
-            Text(':', style: t(24, FontWeight.w800, ll.ink)),
-            _wheel(_m, [for (var i = 0; i < 12; i++) (i * 5).toString().padLeft(2, '0')], 78, (i) => mm = i * 5, mm ~/ 5),
-            _wheel(_a, const ['am', 'pm'], 64, (i) => ap = i, ap, fs: 17),
-          ]),
-        ]),
-      ),
-      const SizedBox(height: 14),
-      Text.rich(
-        bad
-            ? const TextSpan(text: 'That time has already passed')
-            : TextSpan(children: [
-                TextSpan(text: fmtDay(_sel), style: t(15, FontWeight.w800, ll.ink)),
-                const TextSpan(text: ' at '),
-                TextSpan(text: fmtT(_sel), style: t(15, FontWeight.w800, ll.ink)),
-              ]),
-        textAlign: TextAlign.center,
-        style: t(15, FontWeight.w600, bad ? LL.danger : ll.ink2),
-      ),
-      const SizedBox(height: 14),
-      BigButton(label: 'Set time', enabled: !bad, onTap: () => Navigator.pop(context, _sel)),
-    ]);
+        const SizedBox(height: 14),
+        Text.rich(
+          bad
+              ? const TextSpan(text: 'That time has already passed')
+              : TextSpan(
+                  children: [
+                    TextSpan(text: fmtDay(_sel), style: t(15, FontWeight.w800, ll.ink)),
+                    const TextSpan(text: ' at '),
+                    TextSpan(text: fmtT(_sel), style: t(15, FontWeight.w800, ll.ink)),
+                  ],
+                ),
+          textAlign: TextAlign.center,
+          style: t(15, FontWeight.w600, bad ? LL.danger : ll.ink2),
+        ),
+        const SizedBox(height: 14),
+        BigButton(label: 'Set time', enabled: !bad, onTap: () => Navigator.pop(context, _sel)),
+      ],
+    );
   }
 }
 
@@ -942,47 +1066,55 @@ class _NewFolderState extends State<_NewFolder> {
   @override
   Widget build(BuildContext context) {
     final ll = LL.of(context);
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      const SheetTitle('New folder'),
-      LLInput(controller: _name, hint: 'Folder name', icon: 'folder', maxLength: 18, autofocus: true, onChanged: (_) => setState(() {}), onSubmitted: (_) => _go()),
-      const Lab('Icon'),
-      GridView.count(
-        crossAxisCount: 4,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
-        childAspectRatio: 1.35,
-        children: [
-          for (final i in kFolderIcons)
-            Tap(
-              onTap: () {
-                Haptics.tick();
-                setState(() => _icon = i);
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                decoration: BoxDecoration(color: i == _icon ? ll.blue : ll.surface2, borderRadius: BorderRadius.circular(18)),
-                child: Center(child: LLIcon(i, color: i == _icon ? Colors.white : ll.ink2)),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SheetTitle('New folder'),
+        LLInput(controller: _name, hint: 'Folder name', icon: 'folder', maxLength: 18, autofocus: true, onChanged: (_) => setState(() {}), onSubmitted: (_) => _go()),
+        const Lab('Icon'),
+        GridView.count(
+          crossAxisCount: 4,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+          childAspectRatio: 1.35,
+          children: [
+            for (final i in kFolderIcons)
+              Tap(
+                onTap: () {
+                  Haptics.tick();
+                  setState(() => _icon = i);
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  decoration: BoxDecoration(color: i == _icon ? ll.blue : ll.surface2, borderRadius: BorderRadius.circular(18)),
+                  child: Center(child: LLIcon(i, color: i == _icon ? Colors.white : ll.ink2)),
+                ),
               ),
-            ),
-        ],
-      ),
-      Padding(
-        padding: const EdgeInsets.fromLTRB(4, 16, 4, 4),
-        child: Row(children: [
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Share with friends', style: t(15, FontWeight.w700, ll.ink)),
-              Text('Get an invite link after creating', style: t(12.5, FontWeight.w600, ll.ink3)),
-            ]),
+          ],
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 16, 4, 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Share with friends', style: t(15, FontWeight.w700, ll.ink)),
+                    Text('Get an invite link after creating', style: t(12.5, FontWeight.w600, ll.ink3)),
+                  ],
+                ),
+              ),
+              LLToggle(on: _shared, label: 'Share with friends', onChanged: (v) => setState(() => _shared = v)),
+            ],
           ),
-          LLToggle(on: _shared, label: 'Share with friends', onChanged: (v) => setState(() => _shared = v)),
-        ]),
-      ),
-      const SizedBox(height: 18),
-      BigButton(label: _busy ? 'Creating…' : 'Create folder', enabled: _name.text.trim().isNotEmpty && !_busy, onTap: _go),
-    ]);
+        ),
+        const SizedBox(height: 18),
+        BigButton(label: _busy ? 'Creating…' : 'Create folder', enabled: _name.text.trim().isNotEmpty && !_busy, onTap: _go),
+      ],
+    );
   }
 }
 
@@ -997,11 +1129,7 @@ Future<void> shareInvite(AppScope s, Folder f) async {
 }
 
 String inviteLink(AppStore st, Folder f) {
-  final q = {
-    'cid': f.collabId,
-    'join': f.name,
-    if (st.userName.isNotEmpty) 'by': st.userName,
-  };
+  final q = {'cid': f.collabId, 'join': f.name, if (st.userName.isNotEmpty) 'by': st.userName};
   return Uri.parse('$siteUrl/join.html').replace(queryParameters: q).toString();
 }
 
@@ -1096,16 +1224,19 @@ class _QuickSaveState extends State<QuickSave> {
     final d = _when.at;
     final title = _info?.title ?? cleanTitle(_plain);
     if (title.isEmpty) return;
-    st.addItem(Item(
-      id: newId(),
-      kind: _info != null ? ItemKind.link : ItemKind.reminder,
-      title: title,
-      folder: _folder,
-      url: _info?.url ?? '',
-      note: _note.text.trim(),
-      reminder: d?.millisecondsSinceEpoch ?? 0,
-      extra: {if (st.userEmail.isNotEmpty) 'senderEmail': st.userEmail, if (st.userName.isNotEmpty) 'senderName': st.userName},
-    ));
+    st.addItem(
+      Item(
+        id: newId(),
+        kind: _info != null ? ItemKind.link : ItemKind.reminder,
+        title: title,
+        folder: _folder,
+        url: _info?.url ?? '',
+        thumbnail: _info?.image ?? '',
+        note: _note.text.trim(),
+        reminder: d?.millisecondsSinceEpoch ?? 0,
+        extra: {if (st.userEmail.isNotEmpty) 'senderEmail': st.userEmail, if (st.userName.isNotEmpty) 'senderName': st.userName},
+      ),
+    );
     st.gainXp(5);
     if (d != null) s.app.reminders.askPermission();
     Haptics.medium();
@@ -1127,98 +1258,130 @@ class _QuickSaveState extends State<QuickSave> {
     final d = _when.at;
     return Padding(
       padding: EdgeInsets.fromLTRB(10, 0, 10, 12 + (kb > 0 ? kb : bottom)),
-      child: Stack(clipBehavior: Clip.none, children: [
-        Container(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-          decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(30), boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 40, offset: Offset(0, 16))]),
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Row(children: [
-              const SizedBox(width: 58),
-              Expanded(child: Text('Save to Little Later', style: t(16.5, FontWeight.w800, ll.ink))),
-              Circ(icon: 'x', size: 36, iconSize: 16, shadow: false, bg: ll.surface2, label: 'Cancel', onTap: widget.onDone),
-            ]),
-            const SizedBox(height: 10),
-            if (_info != null)
-              LinkPreview(info: _info!, loading: _loading)
-            else
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(color: ll.blueSoft, borderRadius: BorderRadius.circular(20)),
-                child: Text(_plain, maxLines: 3, overflow: TextOverflow.ellipsis, style: t(14.5, FontWeight.w700, ll.ink)),
-              ),
-            const SizedBox(height: 10),
-            AnimatedSize(
-              duration: const Duration(milliseconds: 300),
-              curve: Motion.smooth,
-              child: _noteOpen
-                  ? LLInput(controller: _note, hint: 'Add a note (ingredients, why you saved it…)', icon: 'pen', height: 52, autofocus: true, maxLength: 200)
-                  : Align(
-                      alignment: Alignment.centerLeft,
-                      child: Tap(
-                        onTap: () => setState(() => _noteOpen = true),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Row(mainAxisSize: MainAxisSize.min, children: [
-                            LLIcon('plus', size: 16, color: ll.blueInk),
-                            const SizedBox(width: 6),
-                            Text('Add a note', style: t(14, FontWeight.w800, ll.blueInk)),
-                          ]),
-                        ),
-                      ),
-                    ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+            decoration: BoxDecoration(
+              color: ll.surface,
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 40, offset: Offset(0, 16))],
             ),
-            const Lab('Folder', top: 14),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(children: [
-                for (final f in st.folders) ...[
-                  FolderPill(small: true, icon: f.iconKey, label: f.name, on: f.name == _folder, onTap: () {
-                    Haptics.tick();
-                    setState(() => _folder = f.name);
-                  }),
-                  const SizedBox(width: 8),
-                ],
-                FolderPill(small: true, icon: 'plus', label: 'New', dashed: true, onTap: _newFolder),
-              ]),
-            ),
-            const Lab('Remind me', top: 14),
-            WhenTiles(value: _when, compact: true, onChanged: (w) => setState(() => _when = w)),
-            const SizedBox(height: 16),
-            BigButton(label: 'Save', height: 54, onTap: _save),
-          ]),
-        ),
-        Positioned(
-          left: 12,
-          top: -26,
-          width: 54,
-          height: 58,
-          child: MascotView(stage: st.level.n, controller: _m, style: st.mascotStyle, outfit: st.outfitNow),
-        ),
-        if (_done)
-          Positioned.fill(
-            child: TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0, end: 1),
-              duration: const Duration(milliseconds: 300),
-              builder: (_, v, child) => Opacity(opacity: v, child: child),
-              child: Container(
-                decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(30)),
-                child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  TweenAnimationBuilder<double>(
-                    tween: Tween(begin: 0, end: 1),
-                    duration: const Duration(milliseconds: 600),
-                    curve: Motion.spring,
-                    builder: (_, v, c) => Transform.scale(scale: v, child: c),
-                    child: Container(width: 56, height: 56, decoration: BoxDecoration(shape: BoxShape.circle, color: ll.blue), child: const Center(child: LLIcon('check', size: 28, color: Colors.white, stroke: 2.6))),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    const SizedBox(width: 58),
+                    Expanded(child: Text('Save to Little Later', style: t(16.5, FontWeight.w800, ll.ink))),
+                    Circ(icon: 'x', size: 36, iconSize: 16, shadow: false, bg: ll.surface2, label: 'Cancel', onTap: widget.onDone),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                if (_info != null)
+                  LinkPreview(info: _info!, loading: _loading)
+                else
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(color: ll.blueSoft, borderRadius: BorderRadius.circular(20)),
+                    child: Text(_plain, maxLines: 3, overflow: TextOverflow.ellipsis, style: t(14.5, FontWeight.w700, ll.ink)),
                   ),
-                  const SizedBox(height: 10),
-                  Text('Saved to ${_folder.isEmpty ? 'Little Later' : _folder}', style: t(17, FontWeight.w800, ll.ink)),
-                  const SizedBox(height: 4),
-                  Text(d != null ? '${st.mascotName} will bring it back ${dayLow(d)} at ${fmtT(d)}' : '${st.mascotName} is keeping it safe', style: t(13.5, FontWeight.w600, ll.ink2)),
-                ]),
-              ),
+                const SizedBox(height: 10),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Motion.smooth,
+                  child: _noteOpen
+                      ? LLInput(controller: _note, hint: 'Add a note (ingredients, why you saved it…)', icon: 'pen', height: 52, autofocus: true, maxLength: 200)
+                      : Align(
+                          alignment: Alignment.centerLeft,
+                          child: Tap(
+                            onTap: () => setState(() => _noteOpen = true),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  LLIcon('plus', size: 16, color: ll.blueInk),
+                                  const SizedBox(width: 6),
+                                  Text('Add a note', style: t(14, FontWeight.w800, ll.blueInk)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                ),
+                const Lab('Folder', top: 14),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (final f in st.folders) ...[
+                        FolderPill(
+                          small: true,
+                          icon: f.iconKey,
+                          label: f.name,
+                          on: f.name == _folder,
+                          onTap: () {
+                            Haptics.tick();
+                            setState(() => _folder = f.name);
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      FolderPill(small: true, icon: 'plus', label: 'New', dashed: true, onTap: _newFolder),
+                    ],
+                  ),
+                ),
+                const Lab('Remind me', top: 14),
+                WhenTiles(value: _when, compact: true, onChanged: (w) => setState(() => _when = w)),
+                const SizedBox(height: 16),
+                BigButton(label: 'Save', height: 54, onTap: _save),
+              ],
             ),
           ),
-      ]),
+          Positioned(
+            left: 12,
+            top: -26,
+            width: 54,
+            height: 58,
+            child: MascotView(stage: st.level.n, controller: _m, style: st.mascotStyle, outfit: st.outfitNow),
+          ),
+          if (_done)
+            Positioned.fill(
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: 1),
+                duration: const Duration(milliseconds: 300),
+                builder: (_, v, child) => Opacity(opacity: v, child: child),
+                child: Container(
+                  decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(30)),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0, end: 1),
+                        duration: const Duration(milliseconds: 600),
+                        curve: Motion.spring,
+                        builder: (_, v, c) => Transform.scale(scale: v, child: c),
+                        child: Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(shape: BoxShape.circle, color: ll.blue),
+                          child: const Center(child: LLIcon('check', size: 28, color: Colors.white, stroke: 2.6)),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text('Saved to ${_folder.isEmpty ? 'Little Later' : _folder}', style: t(17, FontWeight.w800, ll.ink)),
+                      const SizedBox(height: 4),
+                      Text(d != null ? '${st.mascotName} will bring it back ${dayLow(d)} at ${fmtT(d)}' : '${st.mascotName} is keeping it safe', style: t(13.5, FontWeight.w600, ll.ink2)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

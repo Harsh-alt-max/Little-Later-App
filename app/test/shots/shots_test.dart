@@ -85,6 +85,29 @@ void main() {
     await t.tap(find.text('Design systems talk'));
     await shot(t, '05_saved');
   });
+  testWidgets('saved grid + large', (t) async {
+    final s = await boot(t);
+    await tapSem(t, 'Saved');
+    s.setPrefs(view: 'grid');
+    await shot(t, '05b_saved_grid');
+    s.setPrefs(view: 'large');
+    await shot(t, '05c_saved_large');
+  });
+  testWidgets('pull to refresh eyes', (t) async {
+    await boot(t);
+    final g = await t.startGesture(const Offset(200, 300));
+    for (var i = 0; i < 24; i++) {
+      await g.moveBy(const Offset(0, 16));
+      await t.pump(const Duration(milliseconds: 16));
+    }
+    await expectLater(find.byType(LittleLaterApp), matchesGoldenFile('out/12_pull_eyes.png'));
+    await g.up();
+    for (var i = 0; i < 9; i++) {
+      await t.pump(const Duration(milliseconds: 50));
+    }
+    await expectLater(find.byType(LittleLaterApp), matchesGoldenFile('out/13_pull_blink.png'));
+    await settle(t, 2500);
+  });
   testWidgets('folders', (t) async {
     await boot(t);
     await tapSem(t, 'Folders');

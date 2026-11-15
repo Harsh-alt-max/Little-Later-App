@@ -11,6 +11,7 @@ import 'package:little_later/services/reminders.dart';
 import 'package:little_later/services/sync.dart';
 import 'package:little_later/widgets/common.dart';
 import 'package:little_later/widgets/icons.dart';
+import 'package:little_later/widgets/item_tile.dart';
 
 Future<void> loadFonts() async {
   final loader = FontLoader('Manrope');
@@ -210,6 +211,8 @@ void main() {
     final store = await pump(tester);
     expect(find.text('Save a link or idea'), findsOneWidget);
     expect(find.text('Search your saved ideas'), findsNothing);
+    await tester.ensureVisible(find.text('Later').first);
+    await tester.pump();
     await tester.tap(find.text('Later').first);
     await go(tester, 900);
     expect(find.text('Later, when?'), findsOneWidget);
@@ -250,6 +253,56 @@ void main() {
     expect(store.items.first.title, 'Booked the table for Friday');
     expect(store.items.first.extra['msg'], isTrue);
     expect(store.folderCount('Love'), 2); // messages don't count as saved items
+    await go(tester, 4000);
+  });
+
+  testWidgets('Saved: list → grid → big covers', (tester) async {
+    final store = await pump(tester);
+    store.byId('d1')!.thumbnail = 'https://i.ytimg.com/vi/x/hqdefault.jpg';
+    await tab(tester, 'Saved');
+    expect(find.byType(ItemCard), findsNothing);
+    await tester.tap(find.byWidgetPredicate((w) => w is Circ && (w.label ?? '').startsWith('View: list')).last);
+    await go(tester, 600);
+    expect(store.viewMode, 'grid');
+    expect(find.byType(ItemCard), findsWidgets);
+    await tester.tap(find.byWidgetPredicate((w) => w is Circ && (w.label ?? '').startsWith('View: grid')).last);
+    await go(tester, 600);
+    expect(store.viewMode, 'large');
+    expect(find.byType(ItemCard), findsWidgets);
+    await go(tester, 4000);
+  });
+
+  testWidgets('pull down on Today: Lil peeks, blinks, page springs back', (tester) async {
+    await pump(tester);
+    final g = await tester.startGesture(const Offset(200, 300));
+    for (var i = 0; i < 24; i++) {
+      await g.moveBy(const Offset(0, 16));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    final eyes = find.byKey(const Key('ll-peek'));
+    expect(eyes, findsWidgets);
+    await g.up();
+    await go(tester, 400);
+    expect(eyes, findsWidgets); // held open while blinking + refreshing
+    await go(tester, 2000);
+    expect(eyes, findsNothing); // back up
+    await go(tester, 3000);
+  });
+
+  testWidgets('shared folder ⋯ has Mute group', (tester) async {
+    final store = await pump(tester);
+    store.userEmail = 'me@x.com';
+    store.guest = false;
+    final f = store.folderNamed('Love')!..collab = true;
+    f.extra['collabId'] = 'cf_me_x_com_m';
+    f.extra['ownerEmail'] = 'me@x.com';
+    await tab(tester, 'Folders');
+    await tester.tap(find.bySemanticsLabel(RegExp('^Love')).first);
+    await go(tester);
+    await tester.tap(find.bySemanticsLabel('Folder options').last);
+    await go(tester, 600);
+    await tapText(tester, 'Mute group', 800);
+    expect(store.isMuted(f), isTrue);
     await go(tester, 4000);
   });
 

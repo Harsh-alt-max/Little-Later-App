@@ -8,6 +8,7 @@ import 'package:little_later/data/store.dart';
 import 'package:little_later/services/auth.dart';
 import 'package:little_later/services/reminders.dart';
 import 'package:little_later/services/sync.dart';
+import 'package:little_later/services/link_meta.dart';
 import 'package:little_later/mascot/mascot_svg.dart';
 import 'package:little_later/data/titles.dart';
 
@@ -128,6 +129,33 @@ void main() {
       }
     });
 
+    test('shared folder: new links from friends notify, chat and own saves do not; mute works', () {
+      final st = AppStore.memory()..seedDemo();
+      final f = st.folderNamed('Love')!
+        ..collab = true
+        ..extra.addAll({'collabId': 'cf_owner_y', 'ownerEmail': 'owner@x.com'});
+      final sync = SyncService(st, enabled: false);
+      final got = <String>[];
+      sync.onShared = (f, it) => got.add(it.id);
+      Map<String, dynamic> item(String id, {bool msg = false, String from = 'riya@x.com'}) =>
+          {'id': id, 'kind': 'link', 'title': id, 'url': 'https://x.com/$id', 'savedAt': 1, 'updatedAt': 1, 'senderEmail': from, if (msg) 'msg': true};
+      sync.debugApplyCollab('cf_owner_y', {'folder': {'name': 'Love'}, 'items': [item('a')]}, me: 'me@x.com'); // first pull: quiet
+      sync.debugApplyCollab('cf_owner_y', {'folder': {'name': 'Love'}, 'items': [item('a'), item('b'), item('c', msg: true), item('d', from: 'me@x.com')]}, me: 'me@x.com');
+      expect(got, ['b']);
+      expect(st.isMuted(f), isFalse);
+      st.setMuted(f, true);
+      expect(st.isMutedName('love'), isTrue);
+      st.setMuted(f, false);
+      expect(st.isMuted(f), isFalse);
+    });
+
+    test('youtube ids and covers', () {
+      expect(youtubeId('https://youtu.be/abc123?t=4'), 'abc123');
+      expect(youtubeId('https://www.youtube.com/watch?v=XYZ&list=1'), 'XYZ');
+      expect(youtubeId('https://youtube.com/shorts/s0rt'), 's0rt');
+      expect(youtubeId('https://example.com/watch?v=1'), isNull);
+    });
+
     test('mascot svg builds for every style, outfit, level and mood', () {
       for (final st in MascotStyle.values) {
         for (var of = 0; of < 3; of++) {
@@ -148,7 +176,7 @@ void main() {
       await pumpApp(tester, demoStore());
       expect(find.text('Next up'), findsOneWidget);
       expect(find.text('Slow-roasted tomato pasta'), findsOneWidget);
-      expect(find.text('Due now'), findsOneWidget);
+      expect(find.text('Due now'), findsNothing); // no pill, the cover shows instead
       expect(find.text('Later today'), findsOneWidget);
       expect(find.text('Anniversary gift ideas'), findsOneWidget);
       expect(find.text('3 ideas want you back today.'), findsOneWidget);
@@ -160,6 +188,8 @@ void main() {
     testWidgets('Revisited completes the next idea with undo', (tester) async {
       final store = demoStore();
       await pumpApp(tester, store);
+      await tester.ensureVisible(find.text('Revisited'));
+      await tester.pump();
       await tester.tap(find.text('Revisited'));
       await settle(tester, 1600);
       expect(store.doneToday, 2);

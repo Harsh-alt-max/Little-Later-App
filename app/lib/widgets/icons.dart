@@ -32,12 +32,17 @@ const Map<String, String> kIconPaths = {
   'plane': '<path d="M10.5 13.5 3 11l1.5-1.5 8 .5 4-4.5a2.1 2.1 0 0 1 3 3L15 12.5l.5 8L14 22l-2.5-7.5-3 2.5v2.5L7 21l-1.5-3.5L2 16l1.5-1.5H6z"/>',
   'chev': '<path d="m9.5 6 6 6-6 6"/>',
   'back': '<path d="M19 12H5M11 6l-6 6 6 6"/>',
+  'bell-off': '<path d="M6.5 16.5V11a5.5 5.5 0 0 1 8.2-4.8M17.5 10.5v6l1.5 1.5H8"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/><path d="M4 4l16 16"/>',
+  'vibe': '<rect x="8" y="4" width="8" height="16" rx="2"/><path d="M4.5 9v6M19.5 9v6M2 11v2M22 11v2"/>',
   'dots': '<circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/>',
   'trash': '<path d="M4.5 7h15M9.5 7V5h5v2M6.5 7l1 12.5h9l1-12.5"/>',
   'snow': '<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5 12 7l2.5-2.5M9.5 19.5 12 17l2.5 2.5"/>',
   'sync': '<path d="M19.5 12a7.5 7.5 0 0 1-13 5.1M4.5 12a7.5 7.5 0 0 1 13-5.1M17.5 3.5v3.4h-3.4M6.5 20.5v-3.4h3.4"/>',
   'mail': '<rect x="3.5" y="5.5" width="17" height="13" rx="3"/><path d="m4.5 7.5 7.5 5.5 7.5-5.5"/>',
   'lock': '<rect x="5" y="10.5" width="14" height="10" rx="3"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/>',
+  'vlist': '<path d="M8.5 6.5h11M8.5 12h11M8.5 17.5h11"/><circle cx="4.5" cy="6.5" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="17.5" r="1"/>',
+  'vgrid': '<rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/>',
+  'vlarge': '<rect x="4" y="4" width="16" height="10" rx="2.5"/><path d="M4 18h16M4 21h10"/>',
   'off': '<path d="M6.5 16.5V11a5.5 5.5 0 0 1 8.2-4.8M17.5 11v5.5l1.5 1.5H8M3.5 3.5l17 17"/>',
 };
 
@@ -98,9 +103,9 @@ class HeartFill extends StatelessWidget {
   final Color color;
   @override
   Widget build(BuildContext context) => SvgPicture.string(
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 19.5s-7.5-4.4-7.5-10A4.2 4.2 0 0 1 12 7a4.2 4.2 0 0 1 7.5 2.5c0 5.6-7.5 10-7.5 10z" fill="#000"/></svg>',
-        width: size,
-        height: size,
-        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
-      );
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 19.5s-7.5-4.4-7.5-10A4.2 4.2 0 0 1 12 7a4.2 4.2 0 0 1 7.5 2.5c0 5.6-7.5 10-7.5 10z" fill="#000"/></svg>',
+    width: size,
+    height: size,
+    colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+  );
 }

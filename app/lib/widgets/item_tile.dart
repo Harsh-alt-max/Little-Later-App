@@ -8,6 +8,7 @@ import '../theme/tokens.dart';
 import 'common.dart';
 import 'icons.dart';
 import 'kit.dart';
+import 'cover.dart';
 import '../services/haptics.dart';
 
 Future<void> openItemUrl(AppScope s, Item it) async {
@@ -41,52 +42,18 @@ class _ItemTileState extends State<ItemTile> with SingleTickerProviderStateMixin
   }
 
   Future<void> _act(String a) async {
-    final s = AppScope.of(context);
-    final st = s.store;
-    final it = widget.item;
-    s.buzz(0);
-    switch (a) {
-      case 'open':
-        await openItemUrl(s, it);
-      case 'done':
-        st.complete(it.id);
-        s.app.gain(15);
-        s.toast.show('“${shortText(it.title)}” done, +15 stars');
-      case 'undone':
-        it.completedAt = 0;
-        st.touchItem(it);
-      case 'remind':
-        final d = await pickLater(context);
-        if (d == null) return;
-        st.setWhen(it.id, d);
-        s.app.reminders.askPermission();
-        s.toast.show('Reminder set, ${dayLow(d)} ${fmtT(d)}');
-      case 'move':
-        if (!mounted) return;
-        final f = await showLLSheet<String>(context, builder: (ctx) {
-          final ll = LL.of(ctx);
-          return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            const SheetTitle('Move to'),
-            for (final f in st.folders)
-              SetRow(
-                icon: f.iconKey,
-                title: f.name,
-                trailing: f.name.toLowerCase() == it.folder.toLowerCase() ? Text('Current', style: t(13, FontWeight.w700, ll.blueInk)) : null,
-                onTap: () => Navigator.pop(ctx, f.name),
-              ),
-          ]);
-        });
-        if (f == null) return;
-        st.moveItem(it.id, f);
-        s.toast.show('Moved to $f');
-      case 'del':
-        await _gone.animateTo(0, curve: Motion.smooth);
-        final undo = st.deleteItem(it.id);
-        s.toast.show('Deleted “${shortText(it.title)}”', undo: () {
-          undo();
-          if (mounted) _gone.value = 1;
-        });
+    if (a == 'del') {
+      await _gone.animateTo(0, curve: Motion.smooth);
+      if (!mounted) return;
     }
+    await itemAction(
+      context,
+      widget.item,
+      a,
+      onUndoDelete: () {
+        if (mounted) _gone.value = 1;
+      },
+    );
   }
 
   @override
@@ -120,7 +87,7 @@ class _ItemTileState extends State<ItemTile> with SingleTickerProviderStateMixin
     } else if (it.url.isEmpty) {
       ic = _fv(ll, LLIcon('bell', size: 19, color: ll.blueInk), ll.blueSoft);
     } else {
-      ic = _fv(ll, Text(it.domain.isEmpty ? '?' : it.domain[0].toUpperCase(), style: t(15, FontWeight.w800, ll.ink2)), ll.surface2);
+      ic = Cover(url: it.thumbnail, letter: it.domain, width: 42, height: 42, radius: 14);
     }
 
     final actions = <Widget>[
@@ -136,83 +103,124 @@ class _ItemTileState extends State<ItemTile> with SingleTickerProviderStateMixin
       child: FadeTransition(
         opacity: _gone,
         child: Container(
-          decoration: BoxDecoration(border: widget.first ? null : Border(top: BorderSide(color: ll.line))),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () {
-                s.buzz(0);
-                widget.onToggle();
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                child: Row(children: [
-                  ic,
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(it.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: t(15, FontWeight.w700, done ? ll.ink3 : ll.ink).copyWith(decoration: done ? TextDecoration.lineThrough : null, decorationColor: ll.ink3)),
-                      const SizedBox(height: 2),
-                      Text(line, maxLines: 1, overflow: TextOverflow.ellipsis, style: t(12.5, FontWeight.w600, blue && !done ? ll.blueInk : ll.ink3)),
-                    ]),
-                  ),
-                  AnimatedRotation(turns: widget.open ? .25 : 0, duration: const Duration(milliseconds: 300), child: LLIcon('chev', size: 16, color: ll.ink3)),
-                ]),
-              ),
-            ),
-            AnimatedSize(
-              duration: const Duration(milliseconds: 400),
-              curve: Motion.smooth,
-              alignment: Alignment.topCenter,
-              child: !widget.open
-                  ? const SizedBox(width: double.infinity)
-                  : Padding(
-                      padding: const EdgeInsets.fromLTRB(54, 0, 0, 14),
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                        if (it.note.isNotEmpty) Padding(padding: const EdgeInsets.only(bottom: 10), child: Text(it.note, style: t(13.5, FontWeight.w500, ll.ink2, h: 1.4))),
-                        if (it.kind == ItemKind.todoList) ...[
-                          for (final tk in it.tasks)
-                            GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onTap: () {
-                                Haptics.tick();
-                                s.store.toggleTask(it.id, tk.id);
-                              },
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 6),
-                                child: Row(children: [
-                                  AnimatedContainer(
-                                    duration: const Duration(milliseconds: 250),
-                                    width: 20,
-                                    height: 20,
-                                    decoration: BoxDecoration(shape: BoxShape.circle, color: tk.done ? ll.blue : Colors.transparent, border: Border.all(color: tk.done ? ll.blue : ll.inkMix(.25), width: 1.6)),
-                                    child: tk.done ? const Center(child: LLIcon('check', size: 12, color: Colors.white, stroke: 3)) : null,
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(child: Text(tk.text, style: t(14, FontWeight.w600, tk.done ? ll.ink3 : ll.ink).copyWith(decoration: tk.done ? TextDecoration.lineThrough : null))),
-                                ]),
-                              ),
+          decoration: BoxDecoration(
+            border: widget.first ? null : Border(top: BorderSide(color: ll.line)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  s.buzz(0);
+                  widget.onToggle();
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  child: Row(
+                    children: [
+                      ic,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              it.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: t(15, FontWeight.w700, done ? ll.ink3 : ll.ink).copyWith(decoration: done ? TextDecoration.lineThrough : null, decorationColor: ll.ink3),
                             ),
-                          _AddStep(onAdd: (v) => s.store.addTask(it.id, v)),
-                          const SizedBox(height: 10),
-                        ],
-                        Wrap(spacing: 8, runSpacing: 8, children: actions),
-                      ]),
-                    ),
-            ),
-          ]),
+                            const SizedBox(height: 2),
+                            Text(line, maxLines: 1, overflow: TextOverflow.ellipsis, style: t(12.5, FontWeight.w600, blue && !done ? ll.blueInk : ll.ink3)),
+                          ],
+                        ),
+                      ),
+                      AnimatedRotation(
+                        turns: widget.open ? .25 : 0,
+                        duration: const Duration(milliseconds: 300),
+                        child: LLIcon('chev', size: 16, color: ll.ink3),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 400),
+                curve: Motion.smooth,
+                alignment: Alignment.topCenter,
+                child: !widget.open
+                    ? const SizedBox(width: double.infinity)
+                    : Padding(
+                        padding: const EdgeInsets.fromLTRB(54, 0, 0, 14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (it.note.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: Text(it.note, style: t(13.5, FontWeight.w500, ll.ink2, h: 1.4)),
+                              ),
+                            if (it.kind == ItemKind.todoList) ...[
+                              for (final tk in it.tasks)
+                                GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: () {
+                                    Haptics.tick();
+                                    s.store.toggleTask(it.id, tk.id);
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 6),
+                                    child: Row(
+                                      children: [
+                                        AnimatedContainer(
+                                          duration: const Duration(milliseconds: 250),
+                                          width: 20,
+                                          height: 20,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: tk.done ? ll.blue : Colors.transparent,
+                                            border: Border.all(color: tk.done ? ll.blue : ll.inkMix(.25), width: 1.6),
+                                          ),
+                                          child: tk.done ? const Center(child: LLIcon('check', size: 12, color: Colors.white, stroke: 3)) : null,
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(tk.text, style: t(14, FontWeight.w600, tk.done ? ll.ink3 : ll.ink).copyWith(decoration: tk.done ? TextDecoration.lineThrough : null)),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              _AddStep(onAdd: (v) => s.store.addTask(it.id, v)),
+                              const SizedBox(height: 10),
+                            ],
+                            Wrap(spacing: 8, runSpacing: 8, children: actions),
+                          ],
+                        ),
+                      ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _fv(LL ll, Widget child, Color bg) => Container(width: 42, height: 42, alignment: Alignment.center, decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(14)), child: child);
+  Widget _fv(LL ll, Widget child, Color bg) => Container(
+    width: 42,
+    height: 42,
+    alignment: Alignment.center,
+    decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(14)),
+    child: child,
+  );
 
   Widget _qa(LL ll, String icon, String label, VoidCallback onTap, {bool pri = false, bool del = false}) {
-    final fg = pri ? Colors.white : del ? (ll.dark ? LL.danger : const Color(0xFFD0453F)) : ll.ink2;
+    final fg = pri
+        ? Colors.white
+        : del
+        ? (ll.dark ? LL.danger : const Color(0xFFD0453F))
+        : ll.ink2;
     return Tap(
       scale: .92,
       onTap: onTap,
@@ -221,10 +229,13 @@ class _ItemTileState extends State<ItemTile> with SingleTickerProviderStateMixin
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 13),
         decoration: BoxDecoration(color: pri ? ll.blue : ll.surface2, borderRadius: BorderRadius.circular(99)),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          LLIcon(icon, size: 15, color: fg),
-          if (label.isNotEmpty) ...[const SizedBox(width: 6), Text(label, style: t(13, FontWeight.w700, fg))],
-        ]),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            LLIcon(icon, size: 15, color: fg),
+            if (label.isNotEmpty) ...[const SizedBox(width: 6), Text(label, style: t(13, FontWeight.w700, fg))],
+          ],
+        ),
       ),
     );
   }
@@ -248,22 +259,31 @@ class _AddStepState extends State<_AddStep> {
   @override
   Widget build(BuildContext context) {
     final ll = LL.of(context);
-    return Row(children: [
-      LLIcon('plus', size: 16, color: ll.ink3),
-      const SizedBox(width: 10),
-      Expanded(
-        child: TextField(
-          controller: c,
-          maxLength: 60,
-          onSubmitted: (v) {
-            widget.onAdd(v);
-            c.clear();
-          },
-          style: t(14, FontWeight.w600, ll.ink),
-          decoration: InputDecoration(isCollapsed: true, border: InputBorder.none, counterText: '', hintText: 'Add a step', hintStyle: t(14, FontWeight.w600, ll.ink3), contentPadding: const EdgeInsets.symmetric(vertical: 8)),
+    return Row(
+      children: [
+        LLIcon('plus', size: 16, color: ll.ink3),
+        const SizedBox(width: 10),
+        Expanded(
+          child: TextField(
+            controller: c,
+            maxLength: 60,
+            onSubmitted: (v) {
+              widget.onAdd(v);
+              c.clear();
+            },
+            style: t(14, FontWeight.w600, ll.ink),
+            decoration: InputDecoration(
+              isCollapsed: true,
+              border: InputBorder.none,
+              counterText: '',
+              hintText: 'Add a step',
+              hintStyle: t(14, FontWeight.w600, ll.ink3),
+              contentPadding: const EdgeInsets.symmetric(vertical: 8),
+            ),
+          ),
         ),
-      ),
-    ]);
+      ],
+    );
   }
 }
 
@@ -277,13 +297,228 @@ class EmptyState extends StatelessWidget {
     final ll = LL.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 30, 20, 10),
-      child: Column(children: [
-        SizedBox(width: 110, height: 120, child: mascot),
-        const SizedBox(height: 8),
-        Text(title, textAlign: TextAlign.center, style: t(18, FontWeight.w800, ll.ink)),
-        const SizedBox(height: 2),
-        Text(body, textAlign: TextAlign.center, style: t(14.5, FontWeight.w500, ll.ink2, h: 1.5)),
-      ]),
+      child: Column(
+        children: [
+          SizedBox(width: 110, height: 120, child: mascot),
+          const SizedBox(height: 8),
+          Text(title, textAlign: TextAlign.center, style: t(18, FontWeight.w800, ll.ink)),
+          const SizedBox(height: 2),
+          Text(body, textAlign: TextAlign.center, style: t(14.5, FontWeight.w500, ll.ink2, h: 1.5)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shared item actions (list rows, cards, chat bubbles).
+Future<void> itemAction(BuildContext context, Item it, String a, {VoidCallback? onUndoDelete}) async {
+  final s = AppScope.of(context);
+  final st = s.store;
+  s.buzz(0);
+  switch (a) {
+    case 'open':
+      await openItemUrl(s, it);
+    case 'done':
+      st.complete(it.id);
+      s.app.gain(15);
+      s.toast.show('“${shortText(it.title)}” done, +15 stars');
+    case 'undone':
+      it.completedAt = 0;
+      st.touchItem(it);
+    case 'remind':
+      final d = await pickLater(context);
+      if (d == null) return;
+      st.setWhen(it.id, d);
+      s.app.reminders.askPermission();
+      s.toast.show('Reminder set, ${dayLow(d)} ${fmtT(d)}');
+    case 'move':
+      final f = await showLLSheet<String>(
+        context,
+        builder: (ctx) {
+          final ll = LL.of(ctx);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SheetTitle('Move to'),
+              for (final f in st.folders)
+                SetRow(
+                  icon: f.iconKey,
+                  title: f.name,
+                  trailing: f.name.toLowerCase() == it.folder.toLowerCase() ? Text('Current', style: t(13, FontWeight.w700, ll.blueInk)) : null,
+                  onTap: () => Navigator.pop(ctx, f.name),
+                ),
+            ],
+          );
+        },
+      );
+      if (f == null) return;
+      st.moveItem(it.id, f);
+      s.toast.show('Moved to $f');
+    case 'del':
+      final undo = st.deleteItem(it.id);
+      s.toast.show(
+        'Deleted “${shortText(it.title)}”',
+        undo: () {
+          undo();
+          onUndoDelete?.call();
+        },
+      );
+  }
+}
+
+/// Bottom sheet with every action for an item.
+Future<void> showItemActions(BuildContext context, Item it, {bool inFolder = false}) async {
+  final a = await showLLSheet<String>(
+    context,
+    builder: (ctx) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SheetTitle(shortText(it.title, 40)),
+        if (it.url.isNotEmpty) SetRow(icon: 'arrow', title: 'Open', onTap: () => Navigator.pop(ctx, 'open')),
+        if (!it.isDone) SetRow(icon: 'check', title: 'Mark done', onTap: () => Navigator.pop(ctx, 'done')) else SetRow(icon: 'back', title: 'Not done', onTap: () => Navigator.pop(ctx, 'undone')),
+        SetRow(icon: 'clock', title: it.whenTs > 0 ? 'Change reminder' : 'Remind me', onTap: () => Navigator.pop(ctx, 'remind')),
+        if (!inFolder) SetRow(icon: 'folder', title: 'Move to folder', onTap: () => Navigator.pop(ctx, 'move')),
+        SetRow(icon: 'trash', title: 'Delete', danger: true, onTap: () => Navigator.pop(ctx, 'del')),
+      ],
+    ),
+  );
+  if (a != null && context.mounted) await itemAction(context, it, a);
+}
+
+enum ViewMode { list, grid, large }
+
+/// Cycles list → grid → large.
+class ViewToggle extends StatelessWidget {
+  const ViewToggle({super.key, required this.mode, required this.onChanged});
+  final ViewMode mode;
+  final ValueChanged<ViewMode> onChanged;
+  @override
+  Widget build(BuildContext context) {
+    final next = ViewMode.values[(mode.index + 1) % 3];
+    return Circ(
+      icon: const {ViewMode.list: 'vlist', ViewMode.grid: 'vgrid', ViewMode.large: 'vlarge'}[mode]!,
+      size: 44,
+      iconSize: 20,
+      label: 'View: ${mode.name}. Tap for ${next.name}',
+      onTap: () => onChanged(next),
+    );
+  }
+}
+
+/// Grid / large card with a cover image. Tap opens the link; ⋯ for actions.
+class ItemCard extends StatelessWidget {
+  const ItemCard({super.key, required this.item, this.large = false, this.inFolder = false, this.by});
+  final Item item;
+  final bool large, inFolder;
+  final String? by;
+
+  @override
+  Widget build(BuildContext context) {
+    final ll = LL.of(context);
+    final s = AppScope.of(context);
+    final it = item;
+    final due = it.whenTs > 0 && !it.isDone ? DateTime.fromMillisecondsSinceEpoch(it.whenTs) : null;
+    var meta = it.isDone
+        ? 'Done'
+        : due != null
+        ? fmtDue(due)
+        : (it.domain.isNotEmpty
+              ? it.domain
+              : it.kind == ItemKind.todoList
+              ? 'To-do'
+              : 'Reminder');
+    if (by != null) meta = '$by · $meta';
+    final Widget cover = it.url.isNotEmpty
+        ? Cover(url: it.thumbnail, letter: it.domain, aspect: large ? 16 / 9 : 4 / 3, radius: 0)
+        : AspectRatio(
+            aspectRatio: large ? 16 / 6 : 4 / 3,
+            child: Container(
+              color: ll.blueSoft,
+              alignment: Alignment.center,
+              child: LLIcon(it.kind == ItemKind.todoList ? 'check' : 'bell', size: 26, color: ll.blueInk),
+            ),
+          );
+    return Tap(
+      scale: .97,
+      onTap: () => it.url.isNotEmpty ? openItemUrl(s, it) : showItemActions(context, it, inFolder: inFolder),
+      child: Container(
+        decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(large ? 26 : 22)),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Stack(
+              children: [
+                Opacity(opacity: it.isDone ? .45 : 1, child: cover),
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: GestureDetector(
+                    onTap: () => showItemActions(context, it, inFolder: inFolder),
+                    child: Container(
+                      width: 34,
+                      height: 34,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withValues(alpha: .45)),
+                      child: const LLIcon('dots', size: 18, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(12, 10, 12, large ? 14 : 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(it.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: t(large ? 16 : 14, FontWeight.w800, it.isDone ? ll.ink3 : ll.ink, h: 1.3)),
+                  const SizedBox(height: 3),
+                  Text(meta, maxLines: 1, overflow: TextOverflow.ellipsis, style: t(12, FontWeight.w600, due != null ? ll.blueInk : ll.ink3)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Lays out items as cards in 2 columns (grid) or 1 column (large).
+class ItemCards extends StatelessWidget {
+  const ItemCards({super.key, required this.items, required this.large, this.inFolder = false, this.by});
+  final List<Item> items;
+  final bool large, inFolder;
+  final String? Function(Item)? by;
+  @override
+  Widget build(BuildContext context) {
+    if (large) {
+      return Column(
+        children: [
+          for (final it in items)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: ItemCard(key: ValueKey(it.id), item: it, large: true, inFolder: inFolder, by: by?.call(it)),
+            ),
+        ],
+      );
+    }
+    final left = <Widget>[], right = <Widget>[];
+    for (var i = 0; i < items.length; i++) {
+      (i.isEven ? left : right).add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: ItemCard(key: ValueKey(items[i].id), item: items[i], inFolder: inFolder, by: by?.call(items[i])),
+        ),
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: Column(children: left)),
+        const SizedBox(width: 12),
+        Expanded(child: Column(children: right)),
+      ],
     );
   }
 }

@@ -20,6 +20,7 @@ import 'screens/today_screen.dart';
 import 'services/auth.dart';
 import 'services/reminders.dart';
 import 'services/sync.dart';
+import 'services/link_meta.dart';
 import 'theme/tokens.dart';
 import 'widgets/common.dart';
 import 'widgets/dock.dart';
@@ -42,24 +43,24 @@ class LittleLaterApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-        listenable: store,
-        builder: (context, _) {
-          final ll = store.darkTheme ? LL.darkTheme : LL.light;
-          return MaterialApp(
-            title: 'Little Later',
-            debugShowCheckedModeBanner: false,
-            theme: buildTheme(ll),
-            home: AnnotatedRegion<SystemUiOverlayStyle>(
-              value: (ll.dark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark).copyWith(
-                statusBarColor: Colors.transparent,
-                systemNavigationBarColor: Colors.transparent,
-                systemNavigationBarContrastEnforced: false,
-              ),
-              child: Shell(store: store, services: services),
-            ),
-          );
-        },
+    listenable: store,
+    builder: (context, _) {
+      final ll = store.darkTheme ? LL.darkTheme : LL.light;
+      return MaterialApp(
+        title: 'Little Later',
+        debugShowCheckedModeBanner: false,
+        theme: buildTheme(ll),
+        home: AnnotatedRegion<SystemUiOverlayStyle>(
+          value: (ll.dark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark).copyWith(
+            statusBarColor: Colors.transparent,
+            systemNavigationBarColor: Colors.transparent,
+            systemNavigationBarContrastEnforced: false,
+          ),
+          child: Shell(store: store, services: services),
+        ),
       );
+    },
+  );
 }
 
 class Shell extends StatefulWidget {
@@ -99,6 +100,8 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    sync.onShared = reminders.sharedAdded;
+    if (widget.services.platform) Future<void>.delayed(const Duration(seconds: 3), () => backfillCovers(store));
     if (store.signedIn) sync.start(store.userEmail);
     _subs.add(reminders.tapped.listen(_openReminderId));
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -217,12 +220,20 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
 
   @override
   void openReminder(Item item) {
-    Navigator.of(_c).push(PageRouteBuilder(
-      opaque: true,
-      transitionDuration: const Duration(milliseconds: 450),
-      pageBuilder: (_, _, _) => _wrap(ReminderScreen(item: item)),
-      transitionsBuilder: (_, a, _, c) => FadeTransition(opacity: a, child: ScaleTransition(scale: Tween(begin: 1.04, end: 1.0).animate(CurvedAnimation(parent: a, curve: Motion.smooth)), child: c)),
-    ));
+    Navigator.of(_c).push(
+      PageRouteBuilder(
+        opaque: true,
+        transitionDuration: const Duration(milliseconds: 450),
+        pageBuilder: (_, _, _) => _wrap(ReminderScreen(item: item)),
+        transitionsBuilder: (_, a, _, c) => FadeTransition(
+          opacity: a,
+          child: ScaleTransition(
+            scale: Tween(begin: 1.04, end: 1.0).animate(CurvedAnimation(parent: a, curve: Motion.smooth)),
+            child: c,
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -273,6 +284,19 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
   }
 
   @override
+  Future<void> refresh() async {
+    final started = DateTime.now();
+    try {
+      await store.reloadFromDisk();
+      if (store.signedIn) await sync.flush();
+      await reminders.reschedule();
+      unawaited(backfillCovers(store));
+    } catch (_) {}
+    final left = const Duration(milliseconds: 700) - DateTime.now().difference(started);
+    if (left > Duration.zero) await Future<void>.delayed(left);
+  }
+
+  @override
   Future<void> signOut({bool delete = false}) async {
     await sync.flush();
     if (delete && store.signedIn) {
@@ -319,22 +343,30 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
   Widget _wrap(Widget child) => _scope(child);
 
   Route _slideUp(Widget page) => PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 600),
-        reverseTransitionDuration: const Duration(milliseconds: 450),
-        pageBuilder: (_, _, _) => page,
-        transitionsBuilder: (_, a, _, c) => SlideTransition(position: Tween(begin: const Offset(0, 1), end: Offset.zero).animate(CurvedAnimation(parent: a, curve: Motion.smooth)), child: c),
-      );
+    transitionDuration: const Duration(milliseconds: 600),
+    reverseTransitionDuration: const Duration(milliseconds: 450),
+    pageBuilder: (_, _, _) => page,
+    transitionsBuilder: (_, a, _, c) => SlideTransition(
+      position: Tween(begin: const Offset(0, 1), end: Offset.zero).animate(CurvedAnimation(parent: a, curve: Motion.smooth)),
+      child: c,
+    ),
+  );
 
   AppScope _scope(Widget child) => AppScope(
-        store: store,
-        toast: _toast,
-        hero: _hero,
-        heroKey: _heroKey,
-        goTab: _goTab,
-        levelUp: (a, b) => setState(() => _levelUp = (a, b)),
-        app: this,
-        child: Stack(children: [Positioned.fill(child: child), ToastView(controller: _toast, onUndo: _undo)]),
-      );
+    store: store,
+    toast: _toast,
+    hero: _hero,
+    heroKey: _heroKey,
+    goTab: _goTab,
+    levelUp: (a, b) => setState(() => _levelUp = (a, b)),
+    app: this,
+    child: Stack(
+      children: [
+        Positioned.fill(child: child),
+        ToastView(controller: _toast, onUndo: _undo),
+      ],
+    ),
+  );
 
   void _undo() {
     _toast.undo?.call();
@@ -356,7 +388,13 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
         goTab: _goTab,
         levelUp: (_, _) {},
         app: this,
-        child: Stack(key: _ctx, children: [Positioned.fill(child: Onboarding(onDone: _onboardDone)), ToastView(controller: _toast, onUndo: _undo)]),
+        child: Stack(
+          key: _ctx,
+          children: [
+            Positioned.fill(child: Onboarding(onDone: _onboardDone)),
+            ToastView(controller: _toast, onUndo: _undo),
+          ],
+        ),
       );
     }
     // Always show the live folder: data can be reloaded (share card, sync),
@@ -369,9 +407,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
     final Widget screen = switch (_tab) {
       0 => TodayScreen(key: const ValueKey('today'), scroll: _todayScroll, bubble: _bubble),
       1 => SavedScreen(key: ValueKey('saved$_searchFocus'), autofocus: _searchFocus),
-      2 => _folder != null
-          ? FolderDetail(key: ValueKey('fd-${_folder!.name}'), folder: _folder!, onBack: () => setState(() => _folder = null))
-          : const FoldersScreen(key: ValueKey('folders')),
+      2 => _folder != null ? FolderDetail(key: ValueKey('fd-${_folder!.name}'), folder: _folder!, onBack: () => setState(() => _folder = null)) : const FoldersScreen(key: ValueKey('folders')),
       _ => const ProfileScreen(key: ValueKey('profile')),
     };
 
@@ -397,73 +433,88 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
           key: _ctx,
           backgroundColor: ll.bg,
           resizeToAvoidBottomInset: false,
-          body: Stack(children: [
-            if (ll.dark)
-              const Positioned.fill(
+          body: Stack(
+            children: [
+              if (ll.dark)
+                const Positioned.fill(
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: RadialGradient(center: Alignment(0, -.32), radius: .9, colors: [Color(0x0A5A7DFF), Color(0x005A7DFF)], stops: [0, .7]),
+                      ),
+                    ),
+                  ),
+                ),
+              Positioned.fill(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 450),
+                  switchInCurve: Motion.smooth,
+                  // Only the incoming screen is shown, so screens never overlap.
+                  layoutBuilder: (current, _) => current ?? const SizedBox(),
+                  transitionBuilder: (child, anim) {
+                    final dx = forward ? 40.0 : -30.0;
+                    return AnimatedBuilder(
+                      animation: anim,
+                      builder: (_, c) => Opacity(
+                        opacity: anim.value,
+                        child: Transform.translate(offset: Offset(dx * (1 - anim.value), 0), child: c),
+                      ),
+                      child: child,
+                    );
+                  },
+                  child: screen,
+                ),
+              ),
+              if (MediaQuery.viewInsetsOf(context).bottom == 0)
+                Builder(
+                  builder: (context) => Dock(
+                    index: _tab,
+                    plusOpen: _sheetOpen,
+                    onTab: (i) {
+                      AppScope.of(context).buzz(0);
+                      _goTab(i);
+                    },
+                    onPlus: () => openSave(folder: _folder?.name ?? ''),
+                  ),
+                ),
+              // Keeps scrolled content from showing under the status bar.
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                height: MediaQuery.paddingOf(context).top + 14,
                 child: IgnorePointer(
                   child: DecoratedBox(
-                    decoration: BoxDecoration(gradient: RadialGradient(center: Alignment(0, -.32), radius: .9, colors: [Color(0x0A5A7DFF), Color(0x005A7DFF)], stops: [0, .7])),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        stops: const [0, .7, 1],
+                        colors: [ll.bg, ll.bg.withValues(alpha: .85), ll.bg.withValues(alpha: 0)],
+                      ),
+                    ),
                   ),
                 ),
               ),
-            Positioned.fill(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 450),
-                switchInCurve: Motion.smooth,
-                // Only the incoming screen is shown, so screens never overlap.
-                layoutBuilder: (current, _) => current ?? const SizedBox(),
-                transitionBuilder: (child, anim) {
-                  final dx = forward ? 40.0 : -30.0;
-                  return AnimatedBuilder(
-                    animation: anim,
-                    builder: (_, c) => Opacity(opacity: anim.value, child: Transform.translate(offset: Offset(dx * (1 - anim.value), 0), child: c)),
-                    child: child,
-                  );
-                },
-                child: screen,
-              ),
-            ),
-            if (MediaQuery.viewInsetsOf(context).bottom == 0) Builder(
-              builder: (context) => Dock(
-                index: _tab,
-                plusOpen: _sheetOpen,
-                onTab: (i) {
-                  AppScope.of(context).buzz(0);
-                  _goTab(i);
-                },
-                onPlus: () => openSave(folder: _folder?.name ?? ''),
-              ),
-            ),
-            // Keeps scrolled content from showing under the status bar.
-            Positioned(
-              left: 0,
-              right: 0,
-              top: 0,
-              height: MediaQuery.paddingOf(context).top + 14,
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, stops: const [0, .7, 1], colors: [ll.bg, ll.bg.withValues(alpha: .85), ll.bg.withValues(alpha: 0)])),
+              ToastView(controller: _toast, onUndo: _undo),
+              if (_levelUp != null)
+                Positioned.fill(
+                  child: LevelUpOverlay(
+                    from: _levelUp!.$1,
+                    to: _levelUp!.$2,
+                    name: store.mascotName,
+                    style: store.mascotStyle,
+                    outfit: store.outfitNow,
+                    onContinue: () {
+                      setState(() => _levelUp = null);
+                      _hero.play(MascotAct.hop);
+                      _hero.mood(Mood.happy, const Duration(milliseconds: 1200));
+                      _bubble.say('Look at me!');
+                    },
+                  ),
                 ),
-              ),
-            ),
-            ToastView(controller: _toast, onUndo: _undo),
-            if (_levelUp != null)
-              Positioned.fill(
-                child: LevelUpOverlay(
-                  from: _levelUp!.$1,
-                  to: _levelUp!.$2,
-                  name: store.mascotName,
-                  style: store.mascotStyle,
-                  outfit: store.outfitNow,
-                  onContinue: () {
-                    setState(() => _levelUp = null);
-                    _hero.play(MascotAct.hop);
-                    _hero.mood(Mood.happy, const Duration(milliseconds: 1200));
-                    _bubble.say('Look at me!');
-                  },
-                ),
-              ),
-          ]),
+            ],
+          ),
         ),
       ),
     );
@@ -515,51 +566,68 @@ class _LevelUpOverlayState extends State<LevelUpOverlay> with SingleTickerProvid
       opacity: _on ? 1 : 0,
       duration: const Duration(milliseconds: 450),
       child: Container(
-        decoration: BoxDecoration(color: ll.bg, gradient: RadialGradient(center: const Alignment(0, -.24), radius: .8, colors: [ll.headA, ll.bg], stops: const [0, .7])),
+        decoration: BoxDecoration(
+          color: ll.bg,
+          gradient: RadialGradient(center: const Alignment(0, -.24), radius: .8, colors: [ll.headA, ll.bg], stops: const [0, .7]),
+        ),
         padding: const EdgeInsets.all(30),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          AnimatedBuilder(
-            animation: _evolve,
-            builder: (_, child) {
-              final v = _evolve.value;
-              final s = v < .35 ? 1 - .18 * (v / .35) : v < .6 ? .82 + .28 * ((v - .35) / .25) : 1.1 - .1 * ((v - .6) / .4);
-              final glow = v < .35 ? v / .35 : v < .6 ? 1 - (v - .35) / .25 : 0.0;
-              return Transform.scale(
-                scale: _evolve.isAnimating ? s : 1,
-                child: ColorFiltered(colorFilter: ColorFilter.mode(Colors.white.withValues(alpha: .6 * glow), BlendMode.srcATop), child: child),
-              );
-            },
-            child: SizedBox(
-              width: 210,
-              height: 230,
-              child: MascotView(stage: _grown ? widget.to.n : widget.from.n, style: widget.style, outfit: widget.outfit, staticMood: _grown ? Mood.happy : Mood.wow, live: false),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedBuilder(
+              animation: _evolve,
+              builder: (_, child) {
+                final v = _evolve.value;
+                final s = v < .35
+                    ? 1 - .18 * (v / .35)
+                    : v < .6
+                    ? .82 + .28 * ((v - .35) / .25)
+                    : 1.1 - .1 * ((v - .6) / .4);
+                final glow = v < .35
+                    ? v / .35
+                    : v < .6
+                    ? 1 - (v - .35) / .25
+                    : 0.0;
+                return Transform.scale(
+                  scale: _evolve.isAnimating ? s : 1,
+                  child: ColorFiltered(
+                    colorFilter: ColorFilter.mode(Colors.white.withValues(alpha: .6 * glow), BlendMode.srcATop),
+                    child: child,
+                  ),
+                );
+              },
+              child: SizedBox(
+                width: 210,
+                height: 230,
+                child: MascotView(stage: _grown ? widget.to.n : widget.from.n, style: widget.style, outfit: widget.outfit, staticMood: _grown ? Mood.happy : Mood.wow, live: false),
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
-            decoration: BoxDecoration(color: ll.blueSoft, borderRadius: BorderRadius.circular(99)),
-            child: Text('Size ${widget.to.n} of 5', style: t(12.5, FontWeight.w700, ll.blueInk)),
-          ),
-          const SizedBox(height: 10),
-          Text('${widget.name} grew bigger!', textAlign: TextAlign.center, style: t(30, FontWeight.w800, ll.ink, ls: -.03)),
-          const SizedBox(height: 8),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 260),
-            child: Text('Now ${widget.to.name} size. Every idea you save and finish helps ${widget.name} grow.', textAlign: TextAlign.center, style: t(15, FontWeight.w500, ll.ink2, h: 1.5)),
-          ),
-          const SizedBox(height: 28),
-          GestureDetector(
-            onTap: widget.onContinue,
-            child: Container(
-              width: 230,
-              height: 60,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(color: ll.blue, borderRadius: BorderRadius.circular(99), boxShadow: ll.blueGlow(.35, 30, 14)),
-              child: Text('Continue', style: t(16.5, FontWeight.w800, Colors.white)),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+              decoration: BoxDecoration(color: ll.blueSoft, borderRadius: BorderRadius.circular(99)),
+              child: Text('Size ${widget.to.n} of 5', style: t(12.5, FontWeight.w700, ll.blueInk)),
             ),
-          ),
-        ]),
+            const SizedBox(height: 10),
+            Text('${widget.name} grew bigger!', textAlign: TextAlign.center, style: t(30, FontWeight.w800, ll.ink, ls: -.03)),
+            const SizedBox(height: 8),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 260),
+              child: Text('Now ${widget.to.name} size. Every idea you save and finish helps ${widget.name} grow.', textAlign: TextAlign.center, style: t(15, FontWeight.w500, ll.ink2, h: 1.5)),
+            ),
+            const SizedBox(height: 28),
+            GestureDetector(
+              onTap: widget.onContinue,
+              child: Container(
+                width: 230,
+                height: 60,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(color: ll.blue, borderRadius: BorderRadius.circular(99), boxShadow: ll.blueGlow(.35, 30, 14)),
+                child: Text('Continue', style: t(16.5, FontWeight.w800, Colors.white)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
