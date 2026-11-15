@@ -102,6 +102,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
     if (store.signedIn) sync.start(store.userEmail);
     _subs.add(reminders.tapped.listen(_openReminderId));
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (store.onboarded && store.notifOn) reminders.askPermission();
       final id = reminders.launchItemId;
       if (id != null) _openReminderId(id);
     });
@@ -293,6 +294,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
   }
 
   Future<void> _onboardDone({required bool guest}) async {
+    Timer(const Duration(milliseconds: 1500), () => reminders.askPermission());
     if (guest) {
       store.finishOnboarding(asGuest: true, name: store.userName);
       setState(() {});
@@ -357,11 +359,17 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
         child: Stack(key: _ctx, children: [Positioned.fill(child: Onboarding(onDone: _onboardDone)), ToastView(controller: _toast, onUndo: _undo)]),
       );
     }
+    // Always show the live folder: data can be reloaded (share card, sync),
+    // which replaces folder objects. Match by shared id, then by name.
+    if (_folder != null && !store.folders.contains(_folder)) {
+      final old = _folder!;
+      _folder = store.folders.where((f) => old.collabId.isNotEmpty && f.collabId == old.collabId).firstOrNull ?? store.folderNamed(old.name);
+    }
     final forward = _tab > _prevTab || _folder != null;
     final Widget screen = switch (_tab) {
       0 => TodayScreen(key: const ValueKey('today'), scroll: _todayScroll, bubble: _bubble),
       1 => SavedScreen(key: ValueKey('saved$_searchFocus'), autofocus: _searchFocus),
-      2 => _folder != null && store.folders.contains(_folder)
+      2 => _folder != null
           ? FolderDetail(key: ValueKey('fd-${_folder!.name}'), folder: _folder!, onBack: () => setState(() => _folder = null))
           : const FoldersScreen(key: ValueKey('folders')),
       _ => const ProfileScreen(key: ValueKey('profile')),
@@ -415,7 +423,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
                 child: screen,
               ),
             ),
-            Builder(
+            if (MediaQuery.viewInsetsOf(context).bottom == 0) Builder(
               builder: (context) => Dock(
                 index: _tab,
                 plusOpen: _sheetOpen,

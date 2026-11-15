@@ -43,7 +43,7 @@ class _FoldersScreenState extends State<FoldersScreen> {
         final fs = s.store.folders;
         return ListView(
           padding: EdgeInsets.only(bottom: 130 + bottom),
-          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+          physics: const ClampingScrollPhysics(),
           children: [
             const PageHead(title: 'Folders'),
             Padding(
@@ -261,7 +261,40 @@ class FolderDetail extends StatefulWidget {
 
 class _FolderDetailState extends State<FolderDetail> {
   String? _open;
+  int _view = 0; // shared folders: 0 = Saved, 1 = Chat
+  final _scroll = ScrollController();
+  final _msg = TextEditingController();
+  final _msgFocus = FocusNode();
   Folder get f => widget.folder;
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    _msg.dispose();
+    _msgFocus.dispose();
+    super.dispose();
+  }
+
+  void _toBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scroll.hasClients) _scroll.animateTo(_scroll.position.maxScrollExtent, duration: const Duration(milliseconds: 350), curve: Motion.smooth);
+    });
+  }
+
+  bool _mine(AppStore st, Item it) {
+    final e = '${it.extra['senderEmail'] ?? ''}';
+    if (e.isNotEmpty) return e == st.userEmail;
+    return f.ownerEmail.isEmpty || f.ownerEmail == st.userEmail;
+  }
+
+  String _senderName(AppStore st, Item it) {
+    if (_mine(st, it)) return 'You';
+    final n = '${it.extra['senderName'] ?? ''}';
+    if (n.isNotEmpty) return n;
+    final e = '${it.extra['senderEmail'] ?? ''}';
+    if (e.isNotEmpty) return e.split('@').first;
+    return f.ownerName.isEmpty ? 'Friend' : f.ownerName;
+  }
 
   Future<void> _invite() async {
     final s = AppScope.of(context);
@@ -276,16 +309,92 @@ class _FolderDetailState extends State<FolderDetail> {
     await inviteSheet(context, f);
   }
 
+  void _send() {
+    final s = AppScope.of(context);
+    final st = s.store;
+    final txt = _msg.text.trim();
+    if (txt.isEmpty) return;
+    final url = extractUrl(txt);
+    final info = url == null ? null : parseLink(url);
+    final note = url == null ? '' : txt.replaceAll(url, '').trim();
+    final it = Item(
+      id: newId(),
+      kind: info != null ? ItemKind.link : ItemKind.reminder,
+      title: info?.title ?? txt,
+      folder: f.name,
+      url: info?.url ?? '',
+      note: note,
+      extra: {'senderEmail': st.userEmail, 'senderName': st.userName, if (info == null) 'msg': true},
+    );
+    st.addItem(it);
+    _msg.clear();
+    Haptics.light();
+    _toBottom();
+    if (info != null) {
+      fetchTitle(info).then((tt) {
+        if (tt != null && tt.isNotEmpty) {
+          it.title = tt;
+          st.touchItem(it);
+        }
+      });
+    }
+  }
+
+  Future<void> _members() async {
+    final s = AppScope.of(context);
+    final st = s.store;
+    final owner = f.ownerEmail.isEmpty || f.ownerEmail == st.userEmail;
+    final gone = await showLLSheet<String>(context, builder: (ctx) {
+      final ll = LL.of(ctx);
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        const SheetTitle('People'),
+        SetRow(icon: 'user', title: owner ? 'You' : (f.ownerName.isEmpty ? f.ownerEmail : f.ownerName), sub: 'Owner'),
+        for (final c in f.collaborators)
+          SetRow(
+            icon: 'user',
+            title: '${c['email']}' == st.userEmail ? 'You' : '${c['name']}',
+            sub: '${c['email']}',
+            trailing: owner && '${c['email']}' != st.userEmail
+                ? Tap(
+                    onTap: () => Navigator.pop(ctx, '${c['email']}'),
+                    child: Container(
+                      height: 34,
+                      padding: const EdgeInsets.symmetric(horizontal: 13),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(color: ll.surface2, borderRadius: BorderRadius.circular(99)),
+                      child: Text('Remove', style: t(13, FontWeight.w800, ll.dark ? LL.danger : const Color(0xFFD0453F))),
+                    ),
+                  )
+                : null,
+          ),
+        if (f.collaborators.isEmpty) Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text('No one has joined yet.', style: t(14, FontWeight.w600, ll.ink3))),
+      ]);
+    });
+    if (gone == null || !mounted) return;
+    final name = '${f.collaborators.where((c) => '${c['email']}' == gone).firstOrNull?['name'] ?? gone}';
+    if (!await confirmSheet(context,
+        title: 'Remove $name?',
+        body: 'They keep what’s already saved, as their own folder, but won’t see anything new you or others add.',
+        yes: 'Remove')) {
+      return;
+    }
+    final err = await s.app.sync.removeMember(f, gone);
+    s.toast.show(err ?? '$name was removed');
+  }
+
   Future<void> _more() async {
     final s = AppScope.of(context);
+    final owner = f.ownerEmail.isEmpty || f.ownerEmail == s.store.userEmail;
     final a = await showLLSheet<String>(context, builder: (ctx) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           SheetTitle(f.name),
           SetRow(icon: 'pen', title: 'Rename', onTap: () => Navigator.pop(ctx, 'rename')),
           SetRow(icon: 'users', title: f.collab ? 'Invite more friends' : 'Share with friends', onTap: () => Navigator.pop(ctx, 'invite')),
+          if (f.collab) SetRow(icon: 'user', title: owner ? 'People and removing' : 'People', onTap: () => Navigator.pop(ctx, 'people')),
           SetRow(icon: 'trash', title: f.collab ? 'Leave and delete folder' : 'Delete folder', danger: true, onTap: () => Navigator.pop(ctx, 'del')),
         ]));
     if (!mounted || a == null) return;
     if (a == 'invite') await _invite();
+    if (a == 'people') await _members();
     if (a == 'rename' && mounted) {
       final c = TextEditingController(text: f.name);
       final n = await showLLSheet<String>(context, builder: (ctx) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -313,192 +422,205 @@ class _FolderDetailState extends State<FolderDetail> {
     final ll = LL.of(context);
     final s = AppScope.of(context);
     final bottom = MediaQuery.paddingOf(context).bottom;
+    final kb = MediaQuery.viewInsetsOf(context).bottom;
     return ListenableBuilder(
       listenable: s.store,
       builder: (context, _) {
         final st = s.store;
-        final its = st.inFolder(f.name)..sort((a, b) => (a.isDone ? 1 : 0).compareTo(b.isDone ? 1 : 0));
+        final chat = f.collab && _view == 1;
+        final its = st.inFolder(f.name).where((i) => i.extra['msg'] != true).toList()..sort((a, b) => (a.isDone ? 1 : 0).compareTo(b.isDone ? 1 : 0));
         final n = its.where((i) => !i.isDone).length;
         final names = [
           f.ownerEmail.isEmpty || f.ownerEmail == st.userEmail ? 'You' : (f.ownerName.isEmpty ? f.ownerEmail.split('@').first : f.ownerName),
           for (final c in f.collaborators) ('${c['email']}' == st.userEmail ? 'You' : '${c['name']}'),
         ];
         final namesTxt = names.length == 1 ? 'Just you so far' : names.length == 2 ? '${names[0]} and ${names[1]}' : '${names.sublist(0, names.length - 1).join(', ')} and ${names.last}';
-        return ListView(
-          padding: EdgeInsets.only(bottom: 130 + bottom),
-          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-          children: [
-            PageHead(
-              left: Circ(icon: 'back', label: 'Back', onTap: () {
-                s.buzz(0);
-                widget.onBack();
-              }),
-              right: Circ(icon: 'dots', label: 'Folder options', onTap: _more),
-              child: Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: Row(children: [
-                  SizedBox(
-                    width: 64,
-                    height: 52,
-                    child: Stack(children: [
-                      Container(width: 32, height: 16, decoration: const BoxDecoration(color: Color(0xFF22328A), borderRadius: BorderRadius.only(topLeft: Radius.circular(8), topRight: Radius.circular(10)))),
-                      Positioned.fill(
-                        top: 7,
-                        child: Container(
-                          decoration: const BoxDecoration(
-                            borderRadius: BorderRadius.only(topLeft: Radius.circular(4), topRight: Radius.circular(14), bottomLeft: Radius.circular(14), bottomRight: Radius.circular(14)),
-                            gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF6A8EFF), Color(0xFF3D6BF5)]),
+        // The composer floats above the keyboard (or above the nav bar).
+        final composerBottom = kb > 0 ? kb + 10 : 100 + bottom;
+        return Stack(children: [
+          ListView(
+            controller: _scroll,
+            padding: EdgeInsets.only(bottom: chat ? composerBottom + 84 : 130 + bottom),
+            physics: const ClampingScrollPhysics(),
+            children: [
+              PageHead(
+                left: Circ(icon: 'back', label: 'Back', onTap: () {
+                  s.buzz(0);
+                  widget.onBack();
+                }),
+                right: Circ(icon: 'dots', label: 'Folder options', onTap: _more),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: Row(children: [
+                    SizedBox(
+                      width: 64,
+                      height: 52,
+                      child: Stack(children: [
+                        Container(width: 32, height: 16, decoration: const BoxDecoration(color: Color(0xFF22328A), borderRadius: BorderRadius.only(topLeft: Radius.circular(8), topRight: Radius.circular(10)))),
+                        Positioned.fill(
+                          top: 7,
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              borderRadius: BorderRadius.only(topLeft: Radius.circular(4), topRight: Radius.circular(14), bottomLeft: Radius.circular(14), bottomRight: Radius.circular(14)),
+                              gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF6A8EFF), Color(0xFF3D6BF5)]),
+                            ),
+                            child: Center(child: LLIcon(f.iconKey, color: Colors.white)),
                           ),
-                          child: Center(child: LLIcon(f.iconKey, color: Colors.white)),
                         ),
-                      ),
-                    ]),
+                      ]),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(f.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: t(28, FontWeight.w800, ll.ink, ls: -.03, h: 1.1)),
+                        const SizedBox(height: 2),
+                        Text('$n item${n == 1 ? '' : 's'}', style: t(14.5, FontWeight.w500, ll.ink2)),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  const SizedBox(height: 18),
+                  GestureDetector(
+                    onTap: f.collab ? _members : null,
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+                      decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(99)),
+                      child: Row(children: [
+                        Avatars(letters: f.collab ? memberLetters(f, st.userName) : [initials(st.userName.isEmpty ? 'You' : st.userName)], size: 32),
+                        const SizedBox(width: 12),
+                        Expanded(child: Text(f.collab ? namesTxt : 'Only you', maxLines: 1, overflow: TextOverflow.ellipsis, style: t(13.5, FontWeight.w600, ll.ink2))),
+                        Tap(
+                          onTap: _invite,
+                          child: Container(
+                            height: 40,
+                            padding: const EdgeInsets.symmetric(horizontal: 15),
+                            decoration: BoxDecoration(color: ll.blue, borderRadius: BorderRadius.circular(99)),
+                            child: Row(children: [
+                              LLIcon(f.collab ? 'plus' : 'users', size: 18, color: Colors.white),
+                              const SizedBox(width: 8),
+                              Text(f.collab ? 'Invite' : 'Share', style: t(13.5, FontWeight.w700, Colors.white)),
+                            ]),
+                          ),
+                        ),
+                      ]),
+                    ),
                   ),
-                  const SizedBox(width: 14),
+                  if (f.collab) ...[
+                    const SizedBox(height: 14),
+                    Segmented(
+                      labels: const ['Saved', 'Chat'],
+                      icons: const ['saved', 'users'],
+                      index: _view,
+                      height: 48,
+                      onChanged: (i) {
+                        s.buzz(0);
+                        setState(() => _view = i);
+                        if (i == 1) _toBottom();
+                      },
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  if (chat)
+                    _Chat(folder: f, items: st.inFolder(f.name)..sort((a, b) => a.savedAt.compareTo(b.savedAt)), mine: (it) => _mine(st, it), name: (it) => _senderName(st, it))
+                  else ...[
+                    if (its.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 22),
+                        decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(28)),
+                        child: Text('Empty for now. Add a link, reminder or to-do.', textAlign: TextAlign.center, style: t(14, FontWeight.w600, ll.ink3)),
+                      )
+                    else
+                      Card28(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                        children: [
+                          for (final it in its)
+                            ItemTile(
+                              key: ValueKey(it.id),
+                              item: it,
+                              inFolder: true,
+                              first: true,
+                              by: f.collab ? _senderName(st, it) : null,
+                              open: _open == it.id,
+                              onToggle: () => setState(() => _open = _open == it.id ? null : it.id),
+                            ),
+                        ],
+                      ),
+                    const SizedBox(height: 14),
+                    Tap(
+                      onTap: () {
+                        Haptics.light();
+                        s.app.openSave(folder: f.name);
+                      },
+                      child: Container(
+                        height: 52,
+                        decoration: BoxDecoration(borderRadius: BorderRadius.circular(99), border: Border.all(color: ll.inkMix(.15), width: 1.5)),
+                        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          LLIcon('plus', size: 18, color: ll.ink2),
+                          const SizedBox(width: 8),
+                          Text('Add link, reminder or to-do', style: t(14.5, FontWeight.w800, ll.ink2)),
+                        ]),
+                      ),
+                    ),
+                  ],
+                ]),
+              ),
+            ],
+          ),
+          if (chat)
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 200),
+              left: 16,
+              right: 16,
+              bottom: composerBottom,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(16, 6, 6, 6),
+                decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(26), border: Border.all(color: ll.line), boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 16, offset: Offset(0, 6))]),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
                   Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(f.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: t(28, FontWeight.w800, ll.ink, ls: -.03, h: 1.1)),
-                      const SizedBox(height: 2),
-                      Text('$n item${n == 1 ? '' : 's'}', style: t(14.5, FontWeight.w500, ll.ink2)),
-                    ]),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: TextField(
+                        controller: _msg,
+                        focusNode: _msgFocus,
+                        minLines: 1,
+                        maxLines: 4,
+                        maxLength: 500,
+                        onTap: _toBottom,
+                        style: t(15, FontWeight.w600, ll.ink),
+                        decoration: InputDecoration(isCollapsed: true, border: InputBorder.none, counterText: '', hintText: 'Send a link or message', hintStyle: t(15, FontWeight.w500, ll.ink3)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Tap(
+                    onTap: _send,
+                    semanticLabel: 'Send',
+                    child: Container(width: 44, height: 44, alignment: Alignment.center, decoration: BoxDecoration(color: ll.blue, shape: BoxShape.circle), child: const LLIcon('right', size: 20, color: Colors.white, stroke: 2.2)),
                   ),
                 ]),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                const SizedBox(height: 18),
-                Container(
-                  padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
-                  decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(99), boxShadow: ll.shadow),
-                  child: Row(children: [
-                    Avatars(letters: f.collab ? memberLetters(f, st.userName) : [initials(st.userName.isEmpty ? 'You' : st.userName)], size: 32),
-                    const SizedBox(width: 12),
-                    Expanded(child: Text(f.collab ? namesTxt : 'Only you', maxLines: 1, overflow: TextOverflow.ellipsis, style: t(13.5, FontWeight.w600, ll.ink2))),
-                    Tap(
-                      onTap: _invite,
-                      child: Container(
-                        height: 40,
-                        padding: const EdgeInsets.symmetric(horizontal: 15),
-                        decoration: BoxDecoration(color: ll.blue, borderRadius: BorderRadius.circular(99)),
-                        child: Row(children: [
-                          LLIcon(f.collab ? 'plus' : 'users', size: 18, color: Colors.white),
-                          const SizedBox(width: 8),
-                          Text(f.collab ? 'Invite' : 'Share', style: t(13.5, FontWeight.w700, Colors.white)),
-                        ]),
-                      ),
-                    ),
-                  ]),
-                ),
-                const SizedBox(height: 16),
-                if (f.collab)
-                  _Chat(folder: f, items: st.inFolder(f.name).where((i) => !i.isDone || i.extra['msg'] == true).toList()..sort((a, b) => a.savedAt.compareTo(b.savedAt)))
-                else ...[
-                  if (its.isEmpty)
-                    Container(
-                      padding: const EdgeInsets.symmetric(vertical: 22),
-                      decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(28)),
-                      child: Text('Empty for now. Tap + to add something.', textAlign: TextAlign.center, style: t(14, FontWeight.w600, ll.ink3)),
-                    )
-                  else
-                    Card28(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-                      children: [
-                        for (final it in its)
-                          ItemTile(
-                            key: ValueKey(it.id),
-                            item: it,
-                            inFolder: true,
-                            first: true,
-                            open: _open == it.id,
-                            onToggle: () => setState(() => _open = _open == it.id ? null : it.id),
-                          ),
-                      ],
-                    ),
-                  const SizedBox(height: 14),
-                  Tap(
-                    onTap: () {
-                      Haptics.light();
-                      s.app.openSave(folder: f.name);
-                    },
-                    child: Container(
-                      height: 52,
-                      decoration: BoxDecoration(borderRadius: BorderRadius.circular(99), border: Border.all(color: ll.inkMix(.15), width: 1.5)),
-                      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        LLIcon('plus', size: 18, color: ll.ink2),
-                        const SizedBox(width: 8),
-                        Text('Add to ${shortText(f.name, 16)}', style: t(14.5, FontWeight.w800, ll.ink2)),
-                      ]),
-                    ),
-                  ),
-                ],
-              ]),
-            ),
-          ],
-        );
+        ]);
       },
     );
   }
 }
 
 // =============================================================================
-// Shared folder as a chat: your saves on the right, friends' on the left.
+// Shared folder chat: your messages and saves on the right, friends' on the left.
 
-class _Chat extends StatefulWidget {
-  const _Chat({required this.folder, required this.items});
+class _Chat extends StatelessWidget {
+  const _Chat({required this.folder, required this.items, required this.mine, required this.name});
   final Folder folder;
   final List<Item> items;
-  @override
-  State<_Chat> createState() => _ChatState();
-}
+  final bool Function(Item) mine;
+  final String Function(Item) name;
 
-class _ChatState extends State<_Chat> {
-  final _c = TextEditingController();
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  bool _mine(AppStore st, Item it) {
-    final e = '${it.extra['senderEmail'] ?? ''}';
-    if (e.isNotEmpty) return e == st.userEmail;
-    return widget.folder.ownerEmail.isEmpty || widget.folder.ownerEmail == st.userEmail;
-  }
-
-  void _send() {
-    final s = AppScope.of(context);
-    final st = s.store;
-    final txt = _c.text.trim();
-    if (txt.isEmpty) return;
-    final url = extractUrl(txt);
-    final info = url == null ? null : parseLink(url);
-    final note = url == null ? '' : txt.replaceAll(url, '').trim();
-    final it = Item(
-      id: newId(),
-      kind: info != null ? ItemKind.link : ItemKind.reminder,
-      title: info?.title ?? txt,
-      folder: widget.folder.name,
-      url: info?.url ?? '',
-      note: note,
-      extra: {'senderEmail': st.userEmail, 'senderName': st.userName, if (info == null) 'msg': true},
-    );
-    st.addItem(it);
-    _c.clear();
-    Haptics.light();
-    if (info != null) {
-      fetchTitle(info).then((tt) {
-        if (tt != null && tt.isNotEmpty) {
-          it.title = tt;
-          st.touchItem(it);
-        }
-      });
-    }
-  }
-
-  Future<void> _actions(Item it) async {
+  Future<void> _actions(BuildContext context, Item it) async {
     final s = AppScope.of(context);
     final st = s.store;
     Haptics.tick();
@@ -509,7 +631,7 @@ class _ChatState extends State<_Chat> {
           if (it.extra['msg'] != true) SetRow(icon: 'clock', title: 'Remind me', onTap: () => Navigator.pop(ctx, 'remind')),
           SetRow(icon: 'trash', title: 'Delete', danger: true, onTap: () => Navigator.pop(ctx, 'del')),
         ]));
-    if (!mounted || a == null) return;
+    if (a == null || !context.mounted) return;
     switch (a) {
       case 'open':
         await openItemUrl(s, it);
@@ -532,84 +654,45 @@ class _ChatState extends State<_Chat> {
   @override
   Widget build(BuildContext context) {
     final ll = LL.of(context);
-    final st = AppScope.of(context).store;
-    final its = widget.items;
     String? lastDay;
     final rows = <Widget>[];
-    for (final it in its) {
+    for (final it in items) {
       final d = DateTime.fromMillisecondsSinceEpoch(it.savedAt);
       final day = fmtDay(d);
       if (day != lastDay) {
         lastDay = day;
-        rows.add(Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          child: Center(child: Text(day, style: t(12, FontWeight.w700, ll.ink3))),
-        ));
+        rows.add(Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Center(child: Text(day, style: t(12, FontWeight.w700, ll.ink3)))));
       }
-      rows.add(_bubble(ll, st, it, _mine(st, it), d));
+      rows.add(_bubble(context, ll, it, mine(it), d));
     }
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      if (its.isEmpty)
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 24),
-          child: Text('Nothing here yet. Send a link or a message below.', textAlign: TextAlign.center, style: t(14, FontWeight.w600, ll.ink3)),
-        ),
-      ...rows,
-      const SizedBox(height: 12),
-      Container(
-        padding: const EdgeInsets.fromLTRB(16, 6, 6, 6),
-        decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(26), border: Border.all(color: ll.line)),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 12, top: 12),
-              child: TextField(
-                controller: _c,
-                minLines: 1,
-                maxLines: 4,
-                maxLength: 500,
-                textInputAction: TextInputAction.newline,
-                style: t(15, FontWeight.w600, ll.ink),
-                decoration: InputDecoration(isCollapsed: true, border: InputBorder.none, counterText: '', hintText: 'Send a link or message', hintStyle: t(15, FontWeight.w500, ll.ink3)),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Tap(
-            onTap: _send,
-            semanticLabel: 'Send',
-            child: Container(
-              width: 44,
-              height: 44,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(color: ll.blue, shape: BoxShape.circle),
-              child: const LLIcon('right', size: 20, color: Colors.white, stroke: 2.2),
-            ),
-          ),
-        ]),
-      ),
-    ]);
+    if (items.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Text('No messages yet. Say hi, or send a link.', textAlign: TextAlign.center, style: t(14, FontWeight.w600, ll.ink3)),
+      );
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: rows);
   }
 
-  Widget _bubble(LL ll, AppStore st, Item it, bool mine, DateTime d) {
-    final name = mine ? 'You' : '${it.extra['senderName'] ?? ''}'.isNotEmpty ? '${it.extra['senderName']}' : '${it.extra['senderEmail'] ?? 'Friend'}'.split('@').first;
+  Widget _bubble(BuildContext context, LL ll, Item it, bool me, DateTime d) {
+    final who = name(it);
     final msg = it.extra['msg'] == true;
-    final fg = mine ? Colors.white : ll.ink;
-    final sub = mine ? Colors.white.withValues(alpha: .72) : ll.ink3;
+    final fg = me ? Colors.white : ll.ink;
+    final sub = me ? Colors.white.withValues(alpha: .72) : ll.ink3;
     final body = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-      if (!mine) Padding(padding: const EdgeInsets.only(bottom: 3), child: Text(name, style: t(12, FontWeight.w800, ll.blueInk))),
-      if (!msg && it.url.isNotEmpty)
+      if (!me) Padding(padding: const EdgeInsets.only(bottom: 3), child: Text(who, style: t(12, FontWeight.w800, ll.blueInk))),
+      if (!msg)
         Container(
           margin: const EdgeInsets.only(bottom: 6),
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: mine ? Colors.white.withValues(alpha: .14) : ll.surface2, borderRadius: BorderRadius.circular(14)),
+          decoration: BoxDecoration(color: me ? Colors.white.withValues(alpha: .14) : ll.surface2, borderRadius: BorderRadius.circular(14)),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            LLIcon('link', size: 16, color: sub),
+            LLIcon(it.url.isNotEmpty ? 'link' : it.kind == ItemKind.todoList ? 'check' : 'bell', size: 16, color: sub),
             const SizedBox(width: 8),
             Flexible(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(it.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: t(14, FontWeight.w800, fg, h: 1.3)),
-                Text(it.domain, style: t(11.5, FontWeight.w600, sub)),
+                Text(it.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: t(14, FontWeight.w800, fg, h: 1.3).copyWith(decoration: it.isDone ? TextDecoration.lineThrough : null)),
+                Text(it.url.isNotEmpty ? it.domain : it.kind == ItemKind.todoList ? 'To-do' : 'Reminder', style: t(11.5, FontWeight.w600, sub)),
               ]),
             ),
           ]),
@@ -625,32 +708,26 @@ class _ChatState extends State<_Chat> {
     ]);
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Row(mainAxisAlignment: mine ? MainAxisAlignment.end : MainAxisAlignment.start, crossAxisAlignment: CrossAxisAlignment.end, children: [
-        if (!mine) ...[
-          Container(
-            width: 28,
-            height: 28,
-            alignment: Alignment.center,
-            decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF5A6FA8)),
-            child: Text(initials(name), style: t(12, FontWeight.w800, Colors.white)),
-          ),
+      child: Row(mainAxisAlignment: me ? MainAxisAlignment.end : MainAxisAlignment.start, crossAxisAlignment: CrossAxisAlignment.end, children: [
+        if (!me) ...[
+          Container(width: 28, height: 28, alignment: Alignment.center, decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF5A6FA8)), child: Text(initials(who), style: t(12, FontWeight.w800, Colors.white))),
           const SizedBox(width: 8),
         ],
         Flexible(
           child: GestureDetector(
-            onTap: () => it.url.isNotEmpty ? openItemUrl(AppScope.of(context), it) : _actions(it),
-            onLongPress: () => _actions(it),
+            onTap: () => it.url.isNotEmpty ? openItemUrl(AppScope.of(context), it) : _actions(context, it),
+            onLongPress: () => _actions(context, it),
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * .74),
               child: Container(
                 padding: const EdgeInsets.fromLTRB(13, 9, 13, 8),
                 decoration: BoxDecoration(
-                  color: mine ? ll.blue : ll.surface,
+                  color: me ? ll.blue : ll.surface,
                   borderRadius: BorderRadius.only(
                     topLeft: const Radius.circular(20),
                     topRight: const Radius.circular(20),
-                    bottomLeft: Radius.circular(mine ? 20 : 6),
-                    bottomRight: Radius.circular(mine ? 6 : 20),
+                    bottomLeft: Radius.circular(me ? 20 : 6),
+                    bottomRight: Radius.circular(me ? 6 : 20),
                   ),
                 ),
                 child: body,
@@ -692,7 +769,12 @@ Future<void> inviteSheet(BuildContext context, Folder f) async {
     ]);
   });
   if (send != true) return;
-  final link = inviteLink(s.store, f);
+  final live = s.store.folders.where((x) => x.collabId.isNotEmpty && x.name == f.name).firstOrNull ?? f;
+  if (live.collabId.isEmpty) {
+    s.toast.show('Couldn’t create the invite. Check your internet and try again.');
+    return;
+  }
+  final link = inviteLink(s.store, live);
   await Clipboard.setData(ClipboardData(text: link));
   try {
     await shareText('${c.text.trim()}\n$link');

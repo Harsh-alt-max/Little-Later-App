@@ -98,7 +98,7 @@ class _SavedScreenState extends State<SavedScreen> {
             );
         return ListView(
           padding: EdgeInsets.only(bottom: 130 + bottom),
-          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+          physics: const ClampingScrollPhysics(),
           children: [
             const PageHead(title: 'Saved'),
             Padding(

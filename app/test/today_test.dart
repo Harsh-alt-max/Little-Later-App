@@ -103,6 +103,31 @@ void main() {
       expect(cleanTitle('A' * 100).length, lessThanOrEqualTo(71));
     });
 
+    test('removed member keeps items as their own folder; others just wait for the move', () {
+      AppStore.now = () => DateTime(2026, 11, 14, 13, 30);
+      for (final removed in [true, false]) {
+        final st = AppStore.memory()..seedDemo();
+        final f = st.folderNamed('Love')!
+          ..collab = true
+          ..extra.addAll({'collabId': 'cf_owner_x', 'ownerEmail': 'owner@x.com', 'ownerName': 'Harsh'});
+        final sync = SyncService(st, enabled: false);
+        sync.debugApplyCollab('cf_owner_x', {
+          'folder': {'name': 'Love', 'collabId': 'cf_owner_x', 'closed': true},
+          'removed': ['friend@x.com'],
+          'items': [],
+        }, me: removed ? 'friend@x.com' : 'other@x.com');
+        if (removed) {
+          expect(f.collab, isFalse);
+          expect(f.collabId, isEmpty);
+          expect(st.inFolder('Love'), isNotEmpty); // nothing deleted
+          expect(st.notes.first.text, contains('removed you'));
+        } else {
+          expect(f.collab, isTrue);
+          expect(f.extra['awaitMove'], isTrue);
+        }
+      }
+    });
+
     test('mascot svg builds for every style, outfit, level and mood', () {
       for (final st in MascotStyle.values) {
         for (var of = 0; of < 3; of++) {

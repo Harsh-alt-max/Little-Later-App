@@ -53,6 +53,7 @@ android {
             // Without the release key this falls back to the debug key, which is fine
             // for trying the build but cannot update an installed v1.2.
             signingConfig = signingConfigs.getByName(if (hasReleaseKey) "release" else "debug")
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 }

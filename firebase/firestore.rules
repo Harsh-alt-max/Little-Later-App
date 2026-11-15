@@ -33,13 +33,14 @@ service cloud.firestore {
       allow list, delete: if false;
     }
 
-    // 3. Folder invites: signed-in people only
+    // 3. Private notes to one person (e.g. "this shared folder moved").
+    //    Anyone signed in can leave one; only that person can read it.
     match /user_invites/{userEmail} {
-      allow get, create, update: if isSignedIn()
-        && (request.method == 'get' || (
-          request.resource.data.keys().hasAll(['invitesPayload', 'updatedAt'])
-          && request.resource.data.invitesPayload is string
-          && request.resource.data.invitesPayload.size() <= 200000));
+      allow get: if isOwner(userEmail);
+      allow create, update: if isSignedIn()
+        && request.resource.data.keys().hasAll(['invitesPayload', 'updatedAt'])
+        && request.resource.data.invitesPayload is string
+        && request.resource.data.invitesPayload.size() <= 200000;
       allow list, delete: if false;
     }
 

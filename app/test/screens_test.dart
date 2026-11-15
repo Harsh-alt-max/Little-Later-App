@@ -138,7 +138,7 @@ void main() {
     await tab(tester, 'Folders');
     await tester.tap(find.bySemanticsLabel(RegExp('^Hobby')).first);
     await go(tester);
-    expect(find.text('Add to Hobby'), findsOneWidget);
+    expect(find.text('Add link, reminder or to-do'), findsOneWidget);
     expect(find.text('Only you'), findsOneWidget);
     await tab(tester, 'Back');
     await tapText(tester, 'New folder');
@@ -239,6 +239,10 @@ void main() {
     await tab(tester, 'Folders');
     await tester.tap(find.bySemanticsLabel(RegExp('^Love')).first);
     await go(tester);
+    // Saved is the main view, with who saved each item.
+    expect(find.textContaining('Riya ·'), findsOneWidget);
+    expect(find.text('Add link, reminder or to-do'), findsOneWidget);
+    await tapText(tester, 'Chat');
     expect(find.text('Riya'), findsOneWidget); // friend's bubble shows their name
     await tester.enterText(find.byType(EditableText).last, 'Booked the table for Friday');
     await tester.tap(find.bySemanticsLabel('Send').last);
@@ -263,6 +267,15 @@ void main() {
     final it = store.items.first;
     expect(it.note, 'lemons, parmesan');
     expect(DateTime.fromMillisecondsSinceEpoch(it.reminder), DateTime(2026, 11, 15, 9));
+    await go(tester, 4000);
+  });
+
+  testWidgets('sharing uses the live folder even after data reloads', (tester) async {
+    final store = await pump(tester);
+    final stale = Folder.fromJson(store.folderNamed('Work')!.toJson()); // a copy, like after a reload
+    await SyncService(store, enabled: false).share(stale);
+    expect(store.folderNamed('Work')!.collab, isTrue);
+    expect(store.folderNamed('Work')!.collabId, startsWith('cf_'));
     await go(tester, 4000);
   });
 

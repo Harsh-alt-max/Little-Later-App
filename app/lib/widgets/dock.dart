@@ -165,7 +165,7 @@ class _DockState extends State<Dock> {
                   child: IgnorePointer(
                     child: Center(
                       child: AnimatedOpacity(
-                        opacity: _label ? 1 : 0,
+                        opacity: _label ? .6 : 0, // subtle: shows where you are without shouting
                         duration: const Duration(milliseconds: 200),
                         child: AnimatedSlide(
                           offset: _label ? Offset.zero : const Offset(0, .2),

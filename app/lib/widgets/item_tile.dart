@@ -19,10 +19,13 @@ Future<void> openItemUrl(AppScope s, Item it) async {
 
 /// v7 .si row: icon, title, one-line meta; tap to expand quick actions.
 class ItemTile extends StatefulWidget {
-  const ItemTile({super.key, required this.item, required this.open, required this.onToggle, this.inFolder = false, this.first = false});
+  const ItemTile({super.key, required this.item, required this.open, required this.onToggle, this.inFolder = false, this.first = false, this.by});
   final Item item;
   final bool open, inFolder, first;
   final VoidCallback onToggle;
+
+  /// Who saved it (shared folders).
+  final String? by;
 
   @override
   State<ItemTile> createState() => _ItemTileState();
@@ -109,6 +112,7 @@ class _ItemTileState extends State<ItemTile> with SingleTickerProviderStateMixin
       line = it.domain.isEmpty ? 'Reminder' : it.domain;
     }
     if (!widget.inFolder && it.folder.isNotEmpty) line = '$line · ${it.folder}';
+    if (widget.by != null) line = '${widget.by} · $line';
 
     final Widget ic;
     if (it.kind == ItemKind.todoList) {

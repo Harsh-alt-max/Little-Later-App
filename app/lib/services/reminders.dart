@@ -20,6 +20,7 @@ class Reminders {
   bool _ready = false;
   Timer? _debounce;
   String? launchItemId;
+  final Set<int> _scheduled = {};
 
   static const _channel = AndroidNotificationDetails(
     'reminders',
@@ -36,15 +37,21 @@ class Reminders {
       tzdata.initializeTimeZones();
       final local = await FlutterTimezone.getLocalTimezone();
       tz.setLocalLocation(tz.getLocation(local.identifier));
-      await _plugin.initialize(
-        settings: const InitializationSettings(android: AndroidInitializationSettings('@drawable/ic_stat_ll')),
-        onDidReceiveNotificationResponse: (r) {
-          if ((r.payload ?? '').isNotEmpty) _tapped.add(r.payload!);
-        },
-      );
+      void onTap(NotificationResponse r) {
+        if ((r.payload ?? '').isNotEmpty) _tapped.add(r.payload!);
+      }
+
+      try {
+        await _plugin.initialize(settings: const InitializationSettings(android: AndroidInitializationSettings('@drawable/ic_stat_ll')), onDidReceiveNotificationResponse: onTap);
+      } catch (_) {
+        // Never let a missing icon switch reminders off: fall back to the app icon.
+        await _plugin.initialize(settings: const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')), onDidReceiveNotificationResponse: onTap);
+      }
       final launch = await _plugin.getNotificationAppLaunchDetails();
       if (launch?.didNotificationLaunchApp == true) launchItemId = launch?.notificationResponse?.payload;
       _ready = true;
+      // Clear reminders left from the previous run; reschedule() re-adds the current ones.
+      await _plugin.cancelAllPendingNotifications();
       store.changes.listen((_) => reschedule());
       store.addListener(_onAny);
       await reschedule();
@@ -56,13 +63,48 @@ class Reminders {
     _debounce = Timer(const Duration(seconds: 2), reschedule);
   }
 
+  bool get ready => _ready;
+
+  /// True when Android allows this app to show notifications.
+  Future<bool> enabled() async {
+    if (!_ready) return false;
+    try {
+      final a = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      return await a?.areNotificationsEnabled() ?? true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /// Shows one now and one in 10 seconds, so you can check reminders work.
+  Future<bool> sendTest() async {
+    if (!_ready || !await askPermission()) return false;
+    await _plugin.show(
+      id: 1,
+      title: '${store.mascotName} says hi',
+      body: 'Notifications work. A reminder test arrives in 10 seconds.',
+      notificationDetails: const NotificationDetails(android: _channel),
+    );
+    await _plugin.zonedSchedule(
+      id: 2,
+      scheduledDate: tz.TZDateTime.now(tz.local).add(const Duration(seconds: 10)),
+      notificationDetails: const NotificationDetails(android: _channel),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      title: '${store.mascotName} says: Time for this',
+      body: 'This is how your reminders will look.',
+    );
+    return true;
+  }
+
   Future<bool> askPermission() async {
     if (!_ready) return false;
     final a = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-    final ok = await a?.requestNotificationsPermission() ?? true;
+    var ok = await a?.areNotificationsEnabled() ?? true;
+    if (!ok) ok = await a?.requestNotificationsPermission() ?? false;
     try {
       if (await a?.canScheduleExactNotifications() == false) await a?.requestExactAlarmsPermission();
     } catch (_) {}
+    if (ok) await reschedule();
     return ok;
   }
 
@@ -79,7 +121,10 @@ class Reminders {
   Future<void> reschedule() async {
     if (!_ready) return;
     try {
-      await _plugin.cancelAll();
+      for (final id in _scheduled) {
+        await _plugin.cancel(id: id);
+      }
+      _scheduled.clear();
       if (!store.notifOn) return;
       final now = DateTime.now();
       final up = store.items.where((i) => !i.isDone && i.whenTs > now.millisecondsSinceEpoch).toList()..sort((a, b) => a.whenTs.compareTo(b.whenTs));
@@ -90,8 +135,10 @@ class Reminders {
       } catch (_) {}
       for (final it in up.take(48)) {
         final when = _quiet(DateTime.fromMillisecondsSinceEpoch(it.whenTs));
+        final nid = 1000 + (it.id.hashCode & 0x3fffffff);
+        _scheduled.add(nid);
         await _plugin.zonedSchedule(
-          id: it.id.hashCode & 0x7fffffff,
+          id: nid,
           scheduledDate: tz.TZDateTime.from(when, tz.local),
           notificationDetails: const NotificationDetails(android: _channel),
           androidScheduleMode: exact ? AndroidScheduleMode.exactAllowWhileIdle : AndroidScheduleMode.inexactAllowWhileIdle,

@@ -235,7 +235,7 @@ class _TodayScreenState extends State<TodayScreen> {
         final bottom = MediaQuery.paddingOf(context).bottom;
         return SingleChildScrollView(
           controller: widget.scroll,
-          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+          physics: const ClampingScrollPhysics(),
           padding: EdgeInsets.only(bottom: 130 + bottom),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             _Header(
@@ -1249,7 +1249,7 @@ class _FolderPills extends StatelessWidget {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       clipBehavior: Clip.none,
-      physics: const BouncingScrollPhysics(),
+      physics: const ClampingScrollPhysics(),
       child: Padding(
         padding: const EdgeInsets.only(top: 4, bottom: 4),
         child: Row(children: [

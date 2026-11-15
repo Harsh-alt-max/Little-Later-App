@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 import '../data/models.dart';
 import '../data/store.dart';
@@ -15,7 +16,7 @@ class SyncService {
 
   final AppStore store;
   final bool enabled;
-  StreamSubscription? _userSub, _changeSub;
+  StreamSubscription? _userSub, _changeSub, _inviteSub;
   final Map<String, StreamSubscription> _collabSubs = {};
   final Map<String, Set<String>> _knownIds = {};
   Timer? _debounce;
@@ -41,6 +42,8 @@ class SyncService {
     _firstPull = true;
     _firstDone = Completer<void>();
     _userSub = _db.collection('users').doc(_email).snapshots().listen(_onUser, onError: (_) {});
+    // Moves of shared folders (sent when an owner removes someone).
+    _inviteSub = _db.collection('user_invites').doc(_email).snapshots().listen(_onInvites, onError: (_) {});
     _changeSub = store.changes.listen((_) {
       _debounce?.cancel();
       _debounce = Timer(const Duration(milliseconds: 1500), pushAll);
@@ -50,6 +53,7 @@ class SyncService {
 
   void stop() {
     _userSub?.cancel();
+    _inviteSub?.cancel();
     _changeSub?.cancel();
     _debounce?.cancel();
     for (final s in _collabSubs.values) {
@@ -148,7 +152,122 @@ class SyncService {
     } catch (_) {
       return;
     }
+    if ((p['folder'] as Map?)?['closed'] == true) {
+      _onClosed(f, p);
+      return;
+    }
     if (_applyCollab(f, p)) store.savedFromRemote();
+  }
+
+  /// Test hook: apply a shared-folder payload as if it came from the cloud.
+  @visibleForTesting
+  void debugApplyCollab(String cid, Map<String, dynamic> p, {String me = ''}) {
+    if (me.isNotEmpty) _email = me;
+    final f = _folderFor(cid);
+    if (f == null) return;
+    if ((p['folder'] as Map?)?['closed'] == true) {
+      _onClosed(f, p);
+    } else if (_applyCollab(f, p)) {
+      store.savedFromRemote();
+    }
+  }
+
+  /// The owner removed someone and moved the folder to a new id.
+  void _onClosed(Folder f, Map<String, dynamic> p) {
+    final removed = ((p['removed'] as List?) ?? []).map((e) => '$e'.toLowerCase());
+    if (removed.contains(_email)) {
+      // Cut off: keep everything already here as your own, personal folder.
+      final name = f.name;
+      final owner = f.ownerName;
+      f.collab = false;
+      for (final k in ['collabId', 'ownerEmail', 'ownerName', 'collaborators', 'deletedIds', 'awaitMove']) {
+        f.extra.remove(k);
+      }
+      _collabSubs.remove('${p['folder']?['collabId'] ?? ''}')?.cancel();
+      store.addNote(Note(text: '${owner.isEmpty ? 'The owner' : owner} removed you from $name. It’s now your own folder.', icon: 'users'), save: false);
+      store.savedFromRemote();
+      store.touchFolder();
+      _watchCollabs();
+    } else {
+      // Still a member: wait for the move notice and don't write to the old copy.
+      f.extra['awaitMove'] = true;
+    }
+  }
+
+  void _onInvites(DocumentSnapshot<Map<String, dynamic>> snap) {
+    final raw = snap.data()?['invitesPayload'];
+    if (raw is! String) return;
+    List moves;
+    try {
+      moves = jsonDecode(raw) as List;
+    } catch (_) {
+      return;
+    }
+    var changed = false;
+    for (final m in moves.whereType<Map>()) {
+      if (m['type'] != 'move') continue;
+      final f = _folderFor('${m['from']}');
+      if (f == null) continue;
+      f.collabId = '${m['to']}';
+      f.extra.remove('awaitMove');
+      changed = true;
+    }
+    if (changed) {
+      store.touchFolder();
+      _watchCollabs();
+    }
+  }
+
+  /// Owner only: remove [email] from a shared folder. Everyone else moves to a
+  /// fresh folder id the removed person never learns, so they get nothing new.
+  /// They keep what they already have, as their own folder.
+  Future<String?> removeMember(Folder f, String email) async {
+    if (_email.isEmpty || f.collabId.isEmpty) return 'You’re offline.';
+    if (f.ownerEmail.toLowerCase() != _email) return 'Only the folder’s owner can remove people.';
+    final gone = email.toLowerCase();
+    final oldCid = f.collabId;
+    final newCid = _newCid();
+    final remaining = f.collaborators.where((c) => '${c['email']}'.toLowerCase() != gone).toList();
+    try {
+      // 1. Tell the old copy who was removed (and close it).
+      await _db.collection('collab_folders').doc(oldCid).set({
+        'version': DateTime.now().millisecondsSinceEpoch,
+        'payload': jsonEncode({
+          'folder': {'name': f.name, 'collab': true, 'collabId': oldCid, 'ownerEmail': f.ownerEmail, 'ownerName': f.ownerName, 'closed': true},
+          'removed': [gone],
+          'items': [],
+          'deletedIds': [],
+          'updatedAt': DateTime.now().millisecondsSinceEpoch,
+        }),
+      });
+      // 2. Move this folder to the new id with the remaining people.
+      _collabSubs.remove(oldCid)?.cancel();
+      f.collabId = newCid;
+      f.extra['collaborators'] = remaining;
+      _knownIds[newCid] = _knownIds.remove(oldCid) ?? {};
+      _seen.add(newCid);
+      store.touchFolder();
+      await _pushCollab(f);
+      // 3. Privately point each remaining member at the new id.
+      final note = jsonEncode([
+        {'type': 'move', 'from': oldCid, 'to': newCid, 'name': f.name},
+      ]);
+      for (final c in remaining) {
+        final e = '${c['email']}'.toLowerCase();
+        if (!e.contains('@')) continue;
+        await _db.collection('user_invites').doc(e).set({'invitesPayload': note, 'updatedAt': DateTime.now().millisecondsSinceEpoch});
+      }
+      _watchCollabs();
+      return null;
+    } catch (_) {
+      return 'Couldn’t remove them. Check your internet.';
+    }
+  }
+
+  String _newCid() {
+    final slug = _email.replaceAll(RegExp(r'[^a-z0-9]+'), '_').replaceAll(RegExp(r'^_+|_+$'), '');
+    final rnd = List.generate(8, (_) => 'abcdefghijklmnopqrstuvwxyz0123456789'[math.Random.secure().nextInt(36)]).join();
+    return 'cf_${slug}_$rnd';
   }
 
   bool _applyCollab(Folder f, Map<String, dynamic> p) {
@@ -217,7 +336,7 @@ class SyncService {
   }
 
   Future<void> _pushCollab(Folder f) async {
-    if (_email.isEmpty || f.collabId.isEmpty) return;
+    if (_email.isEmpty || f.collabId.isEmpty || f.extra['awaitMove'] == true) return;
     final known = _knownIds[f.collabId] ?? {};
     final del = {...((f.extra['deletedIds'] as List?) ?? []).map((e) => '$e'), ...store.deletedIds.where(known.contains)};
     f.extra['deletedIds'] = del.toList();
@@ -252,7 +371,9 @@ class SyncService {
   }
 
   /// Turn a folder into a shared one. Returns the collab id.
-  Future<String> share(Folder f) async {
+  Future<String> share(Folder folder) async {
+    // Work on the folder the store holds right now, never a stale copy.
+    final f = store.folders.contains(folder) ? folder : (store.folderNamed(folder.name) ?? folder);
     if (f.collabId.isEmpty) {
       final slug = _email.replaceAll(RegExp(r'[^a-z0-9]+'), '_').replaceAll(RegExp(r'^_+|_+$'), '');
       final rnd = List.generate(6, (_) => 'abcdefghijklmnopqrstuvwxyz0123456789'[math.Random.secure().nextInt(36)]).join();

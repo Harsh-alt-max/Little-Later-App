@@ -26,7 +26,7 @@ class ProfileScreen extends StatelessWidget {
         final name = st.userName.isEmpty ? (st.guest ? 'Guest' : st.userEmail.split('@').first) : st.userName;
         return ListView(
           padding: EdgeInsets.only(bottom: 130 + bottom),
-          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+          physics: const ClampingScrollPhysics(),
           children: [
             const PageHead(),
             Padding(
@@ -135,6 +135,17 @@ class ProfileScreen extends StatelessWidget {
                         s.toast.show(v ? 'Notifications on' : 'Notifications off');
                       },
                     ),
+                  ),
+                  SetRow(
+                    icon: 'bell',
+                    title: 'Send a test reminder',
+                    sub: 'Check notifications reach you',
+                    chev: true,
+                    onTap: () async {
+                      s.buzz(0);
+                      final ok = await s.app.reminders.sendTest();
+                      s.toast.show(ok ? 'Sent. Another arrives in 10 seconds.' : 'Notifications are blocked. Allow them for Little Later in phone Settings → Apps.');
+                    },
                   ),
                   SetRow(
                     icon: 'moon',
