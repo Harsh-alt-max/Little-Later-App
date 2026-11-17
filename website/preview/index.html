@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Little Later · App preview</title>
+<link rel="icon" href="icon.png" />
+<style>
+  @font-face { font-family: Manrope; font-weight: 800; src: url(app/assets/assets/fonts/Manrope-800.ttf); }
+  @font-face { font-family: Manrope; font-weight: 600; src: url(app/assets/assets/fonts/Manrope-600.ttf); }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body { background: #07080f radial-gradient(70% 55% at 70% 0%, rgba(61,123,255,.22), transparent 70%); color: #f4f6ff; font: 600 16px/1.55 Manrope, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  .wrap { min-height: 100%; display: flex; align-items: center; justify-content: center; gap: 72px; padding: 40px 32px; }
+  .info { max-width: 400px; }
+  .info img { width: 84px; height: 84px; object-fit: contain; filter: drop-shadow(0 10px 24px rgba(61,123,255,.35)); }
+  h1 { font-weight: 800; font-size: 44px; letter-spacing: -.035em; line-height: 1.05; margin: 10px 0 12px; }
+  h1 span { color: #8fb0ff; }
+  .lead { color: #a6acc4; font-size: 17px; }
+  h2 { font-size: 13px; font-weight: 800; color: #8a90a8; text-transform: uppercase; letter-spacing: .08em; margin: 30px 0 12px; }
+  ol { padding: 0; list-style: none; counter-reset: s; }
+  ol li { counter-increment: s; display: flex; gap: 12px; margin-bottom: 12px; color: #dfe3f3; font-size: 15px; }
+  ol li::before { content: counter(s); flex: none; width: 26px; height: 26px; border-radius: 50%; background: rgba(61,123,255,.18); color: #8fb0ff; font-weight: 800; font-size: 13px; display: grid; place-items: center; margin-top: 1px; }
+  b { color: #fff; }
+  .note { margin-top: 26px; font-size: 13px; color: #8a90a8; }
+  .phone { position: relative; width: 410px; height: 860px; max-height: calc(100vh - 40px); border-radius: 56px; padding: 12px; background: #1b1e2b; box-shadow: 0 0 0 2px #2a2e40, 0 40px 120px rgba(0,0,0,.6), 0 0 80px rgba(61,123,255,.12); flex: none; }
+  .phone iframe { width: 100%; height: 100%; border: 0; border-radius: 44px; background: #07080f; display: block; }
+  .notch { position: absolute; top: 24px; left: 50%; transform: translateX(-50%); width: 92px; height: 26px; border-radius: 99px; background: #000; z-index: 2; pointer-events: none; }
+  .loading { position: absolute; inset: 12px; border-radius: 44px; display: grid; place-items: center; background: #07080f; transition: opacity .5s; pointer-events: none; }
+  .loading img { width: 110px; animation: bob 1.6s ease-in-out infinite; }
+  @keyframes bob { 50% { transform: translateY(-8px); } }
+  @media (max-width: 900px) {
+    .wrap { padding: 0; display: block; }
+    .info { display: none; }
+    .phone { width: 100vw; height: 100vh; max-height: none; border-radius: 0; padding: 0; box-shadow: none; background: none; }
+    .phone iframe, .loading { border-radius: 0; inset: 0; }
+    .notch { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section class="info">
+    <img src="mascot.png" alt="" />
+    <h1>Little Later<br /><span>save it now, enjoy it later.</span></h1>
+    <p class="lead">Save links, reminders and to-dos from any app. Your little mascot brings them back right when you have time.</p>
+    <h2>Things to try</h2>
+    <ol>
+      <li><span><b>Pull down</b> on Today and hold. Lil peeks over the top and blinks.</span></li>
+      <li><span>Tap <b>+</b> to save a link, a reminder or a to-do. Reminders and to-dos can <b>repeat</b> every day or on the days you pick.</span></li>
+      <li><span>Open <b>Saved</b> and tap the top-right button for list, grid and big-cover views.</span></li>
+      <li><span>Open <b>Folders → Goa trip</b>, a folder shared with friends, with its own chat.</span></li>
+      <li><span>Tap Lil on Today to say hi and keep your streak. <b>Profile</b> has the sounds, quiet hours and themes.</span></li>
+    </ol>
+    <p class="note">This is the real Android app running in your browser with sample data. Nothing you do here is saved. Phone-only things (notifications, sharing from other apps, vibration) don't work in the browser.</p>
+  </section>
+  <div class="phone">
+    <span class="notch"></span>
+    <iframe id="app" src="app/index.html" title="Little Later app" allow="clipboard-write"></iframe>
+    <div class="loading" id="loading"><img src="mascot.png" alt="Loading" /></div>
+  </div>
+</div>
+<script>
+  const f = document.getElementById('app'), l = document.getElementById('loading');
+  const done = () => { l.style.opacity = 0; setTimeout(() => l.remove(), 600); };
+  f.addEventListener('load', () => {
+    // Wait for Flutter's first frame inside the frame.
+    const t0 = Date.now();
+    const tick = () => {
+      let ready = false;
+      try { ready = !!f.contentDocument.querySelector('flutter-view, flt-glass-pane'); } catch (e) { ready = true; }
+      if (ready || Date.now() - t0 > 15000) setTimeout(done, 500); else setTimeout(tick, 150);
+    };
+    tick();
+  });
+</script>
+</body>
+</html>
