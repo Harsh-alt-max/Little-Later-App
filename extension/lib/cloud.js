@@ -93,6 +93,16 @@ export async function load() {
   return { folders, items, name, email: s.email };
 }
 
+/// Links in a shared folder, straight from the folder everyone shares.
+export async function loadShared(folder) {
+  const cid = folder?.collabId;
+  if (!cid || !/^cf_[a-z0-9_]+$/.test(cid)) return [];
+  const doc = await getDoc(`collab_folders/${cid}`);
+  const p = parse(doc?.data?.payload);
+  const deleted = new Set((p.deletedIds || []).map(String));
+  return (p.items || []).filter((i) => i.url && !i.msg && !deleted.has(String(i.id)));
+}
+
 export const newId = () => `${Date.now()}${String(Math.floor(Math.random() * 9999)).padStart(4, '0')}`;
 
 /// Save a link. [folder] is a folder object from load(). [reminder] is epoch ms or 0.

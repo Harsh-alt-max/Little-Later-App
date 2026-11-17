@@ -149,6 +149,34 @@ void main() {
       expect(st.isMuted(f), isFalse);
     });
 
+    test('repeating reminders come back on their next day; links never repeat', () {
+      final st = AppStore.memory();
+      // Wednesday 18 Nov 2026, 9:00
+      final base = DateTime(2026, 11, 18, 9);
+      expect(nextRepeat(base, [1, 2, 3, 4, 5], DateTime(2026, 11, 20, 10)), DateTime(2026, 11, 23, 9)); // Fri after 9 → Mon
+      expect(nextRepeat(base, [1, 2, 3, 4, 5, 6, 7], DateTime(2026, 11, 19)), DateTime(2026, 11, 19, 9));
+      expect(repeatLabel([1, 2, 3, 4, 5]), 'Mon–Fri');
+      expect(repeatLabel([1, 2, 3, 4, 5, 6, 7]), 'Every day');
+      expect(repeatLabel([1, 3]), 'Mon, Wed');
+      final it = Item(id: 'r1', kind: ItemKind.todoList, title: 'Stretch', folder: '', dueAt: (() { final n = AppStore.now().subtract(const Duration(minutes: 5)); return DateTime(n.year, n.month, n.day, n.hour, n.minute).millisecondsSinceEpoch; })(), tasks: [TodoTask(id: 't', text: 'a', done: true)]);
+      it.repeatDays = [1, 2, 3, 4, 5, 6, 7];
+      st.addItem(it);
+      final before = it.whenTs;
+      final undo = st.complete('r1');
+      expect(it.isDone, isFalse);
+      expect(it.whenTs - before, const Duration(days: 1).inMilliseconds);
+      expect(it.tasks.first.done, isFalse);
+      undo();
+      expect(it.whenTs, before);
+      final link = Item(id: 'l', kind: ItemKind.link, title: 'x', folder: '', url: 'https://a.b', reminder: before)..repeatDays = [1];
+      expect(link.repeats, isFalse);
+      // Left from an earlier day: rolls to today or later.
+      it.dueAt = AppStore.now().subtract(const Duration(days: 3)).millisecondsSinceEpoch;
+      st.rollRepeats();
+      final n = AppStore.now();
+      expect(it.dueAt >= DateTime(n.year, n.month, n.day).millisecondsSinceEpoch, isTrue);
+    });
+
     test('youtube ids and covers', () {
       expect(youtubeId('https://youtu.be/abc123?t=4'), 'abc123');
       expect(youtubeId('https://www.youtube.com/watch?v=XYZ&list=1'), 'XYZ');

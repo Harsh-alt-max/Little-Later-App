@@ -101,6 +101,86 @@ class WhenChoice {
   final DateTime? at;
 }
 
+/// Once / Every day / Mon–Fri / Pick days, with day toggles for custom.
+class RepeatPicker extends StatefulWidget {
+  const RepeatPicker({super.key, required this.days, required this.onChanged});
+  final List<int> days;
+  final ValueChanged<List<int>> onChanged;
+  @override
+  State<RepeatPicker> createState() => _RepeatPickerState();
+}
+
+class _RepeatPickerState extends State<RepeatPicker> {
+  static const _all = [1, 2, 3, 4, 5, 6, 7], _week = [1, 2, 3, 4, 5];
+  late bool _custom = widget.days.isNotEmpty && widget.days.length != 7 && !(widget.days.length == 5 && widget.days.every(_week.contains));
+
+  void _set(List<int> d, {bool custom = false}) {
+    Haptics.tick();
+    setState(() => _custom = custom);
+    widget.onChanged(d);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ll = LL.of(context);
+    final d = widget.days;
+    final daily = d.length == 7, week = !_custom && d.length == 5 && d.every(_week.contains);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        LLChip(label: 'Once', on: d.isEmpty && !_custom, onTap: () => _set(const [])),
+        LLChip(label: 'Every day', icon: 'repeat', on: daily && !_custom, onTap: () => _set(_all)),
+        LLChip(label: 'Mon–Fri', on: week, onTap: () => _set(_week)),
+        LLChip(label: 'Pick days', on: _custom, onTap: () => _set(d.isEmpty || daily ? [DateTime.now().weekday] : d, custom: true)),
+      ]),
+      AnimatedSize(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        child: !_custom
+            ? const SizedBox(width: double.infinity)
+            : Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Row(children: [
+                  for (var i = 1; i <= 7; i++) ...[
+                    Expanded(
+                      child: Tap(
+                        onTap: () {
+                          final n = [...d];
+                          n.contains(i) ? n.remove(i) : n.add(i);
+                          if (n.isEmpty) return;
+                          _set(n..sort(), custom: true);
+                        },
+                        semanticLabel: const ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][i - 1],
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          height: 42,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(shape: BoxShape.circle, color: d.contains(i) ? ll.blue : ll.surface),
+                          child: Text('MTWTFSS'[i - 1], style: t(14, FontWeight.w800, d.contains(i) ? Colors.white : ll.ink2)),
+                        ),
+                      ),
+                    ),
+                    if (i < 7) const SizedBox(width: 6),
+                  ],
+                ]),
+              ),
+      ),
+    ]);
+  }
+}
+
+/// Sheet to change how an existing to-do or reminder repeats.
+Future<List<int>?> pickRepeat(BuildContext context, List<int> days) {
+  var d = [...days];
+  return showLLSheet<List<int>>(context, builder: (ctx) => StatefulBuilder(
+        builder: (ctx, set) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          const SheetTitle('Repeat'),
+          RepeatPicker(days: d, onChanged: (v) => set(() => d = v)),
+          const SizedBox(height: 22),
+          BigButton(label: 'Done', onTap: () => Navigator.pop(ctx, d)),
+        ]),
+      ));
+}
+
 /// 2x2 tiles: Today, Tomorrow, Pick date, No reminder. Tapping a day opens the
 /// time wheels for that day.
 class WhenTiles extends StatelessWidget {
@@ -246,6 +326,8 @@ class _SaveSheetState extends State<_SaveSheet> {
   WhenChoice _when = WhenChoice(When.today, defaultWhen(When.today));
   final List<String> _steps = [];
   String _folder = '';
+  bool _folderInit = false, _folderTouched = false;
+  List<int> _repeat = [];
   bool _suggested = false;
   LinkInfo? _info;
   bool _loadingTitle = false;
@@ -273,7 +355,8 @@ class _SaveSheetState extends State<_SaveSheet> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_folder.isEmpty) {
+    if (!_folderInit) {
+      _folderInit = true;
       final st = s.store;
       _folder = widget.initialFolder.isNotEmpty ? widget.initialFolder : (st.folders.isEmpty ? '' : st.folders.first.name);
       if (widget.initialUrl.isNotEmpty) {
@@ -302,6 +385,7 @@ class _SaveSheetState extends State<_SaveSheet> {
     s.buzz(0);
     setState(() {
       _mode = m;
+      if (widget.initialFolder.isEmpty && !_folderTouched) _folder = m == SaveMode.link ? (s.store.folders.isEmpty ? '' : s.store.folders.first.name) : '';
       if (m == SaveMode.reminder && _when.kind == When.none) _when = WhenChoice(When.today, defaultWhen(When.today));
     });
     _m.play(MascotAct.nod);
@@ -438,6 +522,7 @@ class _SaveSheetState extends State<_SaveSheet> {
     _bubble.say(msg, 0);
     if (st.userEmail.isNotEmpty) it.extra['senderEmail'] = st.userEmail;
     if (st.userName.isNotEmpty) it.extra['senderName'] = st.userName;
+    if (_mode != SaveMode.link && d != null) it.repeatDays = _repeat;
     st.addItem(it);
     if (d != null) s.app.reminders.askPermission();
     final scope = s;
@@ -446,7 +531,8 @@ class _SaveSheetState extends State<_SaveSheet> {
     Navigator.pop(context);
     scope.app.gain(5, line: 'Got it, safe with me.');
     final fname = _folder.isEmpty ? 'Saved' : _folder;
-    scope.toast.show('${_mode == SaveMode.todo ? 'Added' : 'Saved'} to $fname${d != null ? ', ${dayLow(d)} ${fmtT(d)}' : ''}');
+    final rep = it.repeats ? ', ${repeatLabel(_repeat).toLowerCase()} at ${fmtT(d!)}' : (d != null ? ', ${dayLow(d)} ${fmtT(d)}' : '');
+    scope.toast.show('${_mode == SaveMode.todo ? 'Added' : 'Saved'} to $fname$rep');
   }
 
   @override
@@ -587,7 +673,7 @@ class _SaveSheetState extends State<_SaveSheet> {
                                   ),
                           ),
                         ),
-                      Lab('Folder', hint: _suggested ? 'Suggested' : ''),
+                      Lab('Folder', hint: _suggested ? 'Suggested' : (_folder.isEmpty ? 'None, tap one to add' : 'Optional, tap again to remove')),
                       SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         clipBehavior: Clip.none,
@@ -600,11 +686,13 @@ class _SaveSheetState extends State<_SaveSheet> {
                                 on: f.name == _folder,
                                 onTap: () {
                                   s.buzz(0);
+                                  final off = f.name == _folder;
                                   setState(() {
-                                    _folder = f.name;
+                                    _folder = off ? '' : f.name;
+                                    _folderTouched = true;
                                     _suggested = false;
                                   });
-                                  _bubble.say('${f.name} it is.', 0);
+                                  _bubble.say(off ? 'No folder, that’s fine.' : '${f.name} it is.', 0);
                                 },
                               ),
                               const SizedBox(width: 10),
@@ -615,6 +703,10 @@ class _SaveSheetState extends State<_SaveSheet> {
                       ),
                       Lab(mode.$3),
                       WhenTiles(value: _when, onChanged: _setWhen, noneLabel: _mode == SaveMode.todo ? 'No date' : 'No reminder'),
+                      if (_mode != SaveMode.link && _when.at != null) ...[
+                        Lab('Repeat', hint: repeatLabel(_repeat)),
+                        RepeatPicker(days: _repeat, onChanged: (d) => setState(() => _repeat = d)),
+                      ],
                       const SizedBox(height: 22),
                       BigButton(label: mode.$2, xp: 5, enabled: _valid, onTap: _save),
                     ],

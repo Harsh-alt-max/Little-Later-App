@@ -78,6 +78,7 @@ class _ItemTileState extends State<ItemTile> with SingleTickerProviderStateMixin
     } else {
       line = it.domain.isEmpty ? 'Reminder' : it.domain;
     }
+    if (!done && it.repeats) line = '$line · ${repeatLabel(it.repeatDays)}';
     if (!widget.inFolder && it.folder.isNotEmpty) line = '$line · ${it.folder}';
     if (widget.by != null) line = '${widget.by} · $line';
 
@@ -94,6 +95,7 @@ class _ItemTileState extends State<ItemTile> with SingleTickerProviderStateMixin
       if (it.url.isNotEmpty) _qa(ll, 'arrow', 'Open', () => _act('open'), pri: true),
       if (!done) _qa(ll, 'check', 'Done', () => _act('done')) else _qa(ll, 'back', 'Not done', () => _act('undone')),
       _qa(ll, 'clock', 'Remind', () => _act('remind')),
+      if (it.kind != ItemKind.link && it.whenTs > 0) _qa(ll, 'repeat', it.repeats ? repeatLabel(it.repeatDays) : 'Repeat', () => _act('repeat')),
       if (!widget.inFolder) _qa(ll, 'folder', 'Move', () => _act('move')),
       _qa(ll, 'trash', '', () => _act('del'), del: true),
     ];
@@ -353,7 +355,7 @@ Future<void> itemAction(BuildContext context, Item it, String a, {VoidCallback? 
       );
       if (f == null) return;
       st.moveItem(it.id, f);
-      s.toast.show('Moved to $f');
+      s.toast.show(f.isEmpty ? 'Taken out of the folder' : 'Moved to $f');
     case 'del':
       final undo = st.deleteItem(it.id);
       s.toast.show(
@@ -377,6 +379,7 @@ Future<void> showItemActions(BuildContext context, Item it, {bool inFolder = fal
         if (it.url.isNotEmpty) SetRow(icon: 'arrow', title: 'Open', onTap: () => Navigator.pop(ctx, 'open')),
         if (!it.isDone) SetRow(icon: 'check', title: 'Mark done', onTap: () => Navigator.pop(ctx, 'done')) else SetRow(icon: 'back', title: 'Not done', onTap: () => Navigator.pop(ctx, 'undone')),
         SetRow(icon: 'clock', title: it.whenTs > 0 ? 'Change reminder' : 'Remind me', onTap: () => Navigator.pop(ctx, 'remind')),
+        if (it.kind != ItemKind.link && it.whenTs > 0) SetRow(icon: 'repeat', title: 'Repeat', sub: repeatLabel(it.repeatDays), onTap: () => Navigator.pop(ctx, 'repeat')),
         if (!inFolder) SetRow(icon: 'folder', title: 'Move to folder', onTap: () => Navigator.pop(ctx, 'move')),
         SetRow(icon: 'trash', title: 'Delete', danger: true, onTap: () => Navigator.pop(ctx, 'del')),
       ],
@@ -427,20 +430,99 @@ class ItemCard extends StatelessWidget {
               : it.kind == ItemKind.todoList
               ? 'To-do'
               : 'Reminder');
+    if (!it.isDone && it.repeats) meta = '$meta · ${repeatLabel(it.repeatDays)}';
+    if (!inFolder && it.folder.isNotEmpty) meta = '$meta · ${it.folder}';
     if (by != null) meta = '$by · $meta';
-    final Widget cover = it.url.isNotEmpty
-        ? Cover(url: it.thumbnail, letter: it.domain, aspect: large ? 16 / 9 : 4 / 3, radius: 0)
-        : AspectRatio(
-            aspectRatio: large ? 16 / 6 : 4 / 3,
-            child: Container(
-              color: ll.blueSoft,
-              alignment: Alignment.center,
-              child: LLIcon(it.kind == ItemKind.todoList ? 'check' : 'bell', size: 26, color: ll.blueInk),
-            ),
-          );
+    final dots = GestureDetector(
+      onTap: () => showItemActions(context, it, inFolder: inFolder),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: 34,
+        height: 34,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(shape: BoxShape.circle, color: it.url.isNotEmpty ? Colors.black.withValues(alpha: .45) : ll.surface2),
+        child: LLIcon('dots', size: 18, color: it.url.isNotEmpty ? Colors.white : ll.ink2),
+      ),
+    );
+    final titleStyle = t(large ? 16 : 14, FontWeight.w800, it.isDone ? ll.ink3 : ll.ink, h: 1.3);
+    final metaText = Text(meta, maxLines: 2, overflow: TextOverflow.ellipsis, style: t(12, FontWeight.w600, due != null ? ll.blueInk : ll.ink3));
+
+    // To-dos and reminders: no picture, the content is the card. Steps can be ticked right here.
+    if (it.url.isEmpty) {
+      final steps = it.tasks;
+      final shown = large ? steps : steps.take(4).toList();
+      return Tap(
+        scale: .98,
+        onTap: () => showItemActions(context, it, inFolder: inFolder),
+        child: Container(
+          decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(large ? 26 : 22)),
+          padding: EdgeInsets.fromLTRB(12, 12, 10, large ? 14 : 12),
+          child: Opacity(
+            opacity: it.isDone ? .55 : 1,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(color: ll.blueSoft, borderRadius: BorderRadius.circular(11)),
+                  child: LLIcon(it.kind == ItemKind.todoList ? 'check' : (it.repeats ? 'repeat' : 'bell'), size: 17, color: ll.blueInk),
+                ),
+                const Spacer(),
+                dots,
+              ]),
+              const SizedBox(height: 10),
+              Text(it.title, maxLines: 3, overflow: TextOverflow.ellipsis, style: titleStyle),
+              const SizedBox(height: 3),
+              metaText,
+              if (shown.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                for (final tk in shown)
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      s.buzz(0);
+                      s.store.toggleTask(it.id, tk.id);
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 5),
+                      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          width: 20,
+                          height: 20,
+                          margin: const EdgeInsets.only(top: 1),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: tk.done ? ll.blue : Colors.transparent,
+                            border: Border.all(color: tk.done ? ll.blue : ll.ink3, width: 1.6),
+                          ),
+                          child: tk.done ? const LLIcon('check', size: 12, color: Colors.white) : null,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            tk.text,
+                            maxLines: large ? 3 : 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: t(13, FontWeight.w600, tk.done ? ll.ink3 : ll.ink2, h: 1.35).copyWith(decoration: tk.done ? TextDecoration.lineThrough : null),
+                          ),
+                        ),
+                      ]),
+                    ),
+                  ),
+                if (shown.length < steps.length) Padding(padding: const EdgeInsets.only(top: 2), child: Text('+${steps.length - shown.length} more', style: t(12, FontWeight.w700, ll.ink3))),
+              ],
+            ]),
+          ),
+        ),
+      );
+    }
+
     return Tap(
       scale: .97,
-      onTap: () => it.url.isNotEmpty ? openItemUrl(s, it) : showItemActions(context, it, inFolder: inFolder),
+      onTap: () => openItemUrl(s, it),
       child: Container(
         decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(large ? 26 : 22)),
         clipBehavior: Clip.antiAlias,
@@ -449,21 +531,8 @@ class ItemCard extends StatelessWidget {
           children: [
             Stack(
               children: [
-                Opacity(opacity: it.isDone ? .45 : 1, child: cover),
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: GestureDetector(
-                    onTap: () => showItemActions(context, it, inFolder: inFolder),
-                    child: Container(
-                      width: 34,
-                      height: 34,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withValues(alpha: .45)),
-                      child: const LLIcon('dots', size: 18, color: Colors.white),
-                    ),
-                  ),
-                ),
+                Opacity(opacity: it.isDone ? .45 : 1, child: Cover(url: it.thumbnail, letter: it.domain, aspect: large ? 16 / 9 : 4 / 3, radius: 0)),
+                Positioned(right: 8, top: 8, child: dots),
               ],
             ),
             Padding(
@@ -471,9 +540,9 @@ class ItemCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(it.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: t(large ? 16 : 14, FontWeight.w800, it.isDone ? ll.ink3 : ll.ink, h: 1.3)),
+                  Text(it.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: titleStyle),
                   const SizedBox(height: 3),
-                  Text(meta, maxLines: 1, overflow: TextOverflow.ellipsis, style: t(12, FontWeight.w600, due != null ? ll.blueInk : ll.ink3)),
+                  metaText,
                 ],
               ),
             ),

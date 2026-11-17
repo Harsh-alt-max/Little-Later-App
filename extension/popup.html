@@ -45,6 +45,12 @@
         </div>
       </header>
 
+      <div class="tabs" role="tablist">
+        <button id="tab-save" type="button" role="tab" class="on">Save this page</button>
+        <button id="tab-saved" type="button" role="tab">My links</button>
+      </div>
+
+      <div id="pane-save">
       <div id="page" class="page">
         <div id="cover" class="cover"><span id="cover-letter">•</span><img id="cover-img" alt="" hidden /></div>
         <div class="page-txt">
@@ -57,6 +63,8 @@
       <h2>Folder</h2>
       <div id="folders" class="chips"></div>
 
+      <button id="add-remind" class="link-btn" type="button">+ Remind me</button>
+      <div id="remind-box" hidden>
       <h2>Remind me</h2>
       <div id="when" class="tiles">
         <button type="button" data-w="today"><b>Today</b><small id="w-today"></small></button>
@@ -68,6 +76,7 @@
         <input id="w-day" type="date" aria-label="Day" />
         <input id="w-time" type="time" step="300" aria-label="Time" />
       </div>
+      </div>
 
       <button id="add-note" class="link-btn" type="button">+ Add a note</button>
       <textarea id="note" rows="2" maxlength="300" placeholder="Why you saved it, what to look for…" hidden></textarea>
@@ -78,6 +87,14 @@
       <div id="recent-wrap" hidden>
         <h2>Recent</h2>
         <ul id="recent" class="recent"></ul>
+      </div>
+      </div>
+
+      <div id="pane-saved" hidden>
+        <div id="lib-folders" class="chips scroll"></div>
+        <p id="lib-note" class="lib-note"></p>
+        <ul id="lib" class="recent lib"></ul>
+        <p id="lib-empty" class="empty" hidden>No links here yet.</p>
       </div>
     </section>
 

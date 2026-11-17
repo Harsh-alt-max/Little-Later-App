@@ -1,5 +1,5 @@
 import { signInWithEmail, session, signOut } from './lib/auth.js';
-import { load, saveLink } from './lib/cloud.js';
+import { load, saveLink, loadShared } from './lib/cloud.js';
 import { describeTab } from './lib/page.js';
 import { SITE } from './lib/config.js';
 
@@ -32,7 +32,7 @@ function dayLabel(d) {
 }
 
 // ---------------------------------------------------------------- state
-const state = { page: null, folders: [], folder: null, when: 'none', at: null };
+const state = { page: null, folders: [], folder: null, when: 'none', at: null, items: [], libFolder: null };
 
 const FOLDER_ICON = '<svg viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>';
 const USERS_ICON = '<svg viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><path d="M15.5 5.6a3.2 3.2 0 0 1 0 5.8M17.5 14.2A5.5 5.5 0 0 1 20.5 19"/></svg>';
@@ -108,16 +108,90 @@ function renderRecent(items) {
     const b = document.createElement('b');
     b.textContent = it.title || it.url;
     const s = document.createElement('small');
-    let host = '';
-    try {
-      host = new URL(it.url).hostname.replace(/^www\./, '');
-    } catch {}
-    s.textContent = [it.folder, host].filter(Boolean).join(' · ');
+    s.textContent = [it.folder, host(it.url)].filter(Boolean).join(' · ');
     t.append(b, s);
     li.append(th, t);
     li.onclick = () => chrome.tabs.create({ url: it.url });
     ul.append(li);
   }
+}
+
+// ---------------------------------------------------------------- my links
+const host = (u) => {
+  try {
+    return new URL(u).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+};
+
+function linkRow(it, showFolder) {
+  const li = document.createElement('li');
+  const th = document.createElement('span');
+  th.className = 'th';
+  if (it.thumbnail) th.style.backgroundImage = `url("${String(it.thumbnail).replace(/"/g, '%22')}")`;
+  else th.textContent = (host(it.url)[0] || '•').toUpperCase();
+  const t = document.createElement('div');
+  t.className = 't';
+  const b = document.createElement('b');
+  b.textContent = it.title || it.url;
+  const sm = document.createElement('small');
+  const who = it.senderName || (it.senderEmail ? String(it.senderEmail).split('@')[0] : '');
+  sm.textContent = [showFolder ? it.folder : '', who && state.libFolder?.collab ? who : '', host(it.url)].filter(Boolean).join(' · ');
+  t.append(b, sm);
+  li.append(th, t);
+  li.title = it.url;
+  li.onclick = () => chrome.tabs.create({ url: it.url });
+  return li;
+}
+
+let libGen = 0;
+async function renderLib() {
+  const gen = ++libGen;
+  const box = $('lib-folders');
+  box.innerHTML = '';
+  const chip = (label, f, icon) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `chip${state.libFolder === f ? ' on' : ''}`;
+    if (icon) b.innerHTML = icon;
+    b.append(document.createTextNode(label));
+    b.onclick = () => {
+      state.libFolder = f;
+      renderLib();
+    };
+    box.append(b);
+  };
+  chip('All', null);
+  for (const f of state.folders) chip(f.name, f, f.collab ? USERS_ICON : FOLDER_ICON);
+
+  const f = state.libFolder;
+  const ul = $('lib');
+  $('lib-note').textContent = f?.collab ? 'Shared folder: everyone in it sees these links.' : '';
+  let list;
+  if (f?.collab) {
+    ul.innerHTML = '<li class="loading"><div class="dots"><i></i><i></i><i></i></div></li>';
+    try {
+      list = await loadShared(f);
+    } catch {
+      list = state.items.filter((i) => String(i.folder).toLowerCase() === f.name.toLowerCase());
+    }
+    if (gen !== libGen) return;
+  } else {
+    list = state.items.filter((i) => i.url && (!f || String(i.folder).toLowerCase() === f.name.toLowerCase()));
+  }
+  list = list.filter((i) => i.url && !i.completedAt).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+  ul.innerHTML = '';
+  for (const it of list.slice(0, 100)) ul.append(linkRow(it, !f));
+  $('lib-empty').hidden = list.length > 0;
+}
+
+function setTab(saved) {
+  $('tab-save').classList.toggle('on', !saved);
+  $('tab-saved').classList.toggle('on', saved);
+  $('pane-save').hidden = saved;
+  $('pane-saved').hidden = !saved;
+  if (saved) renderLib();
 }
 
 // ---------------------------------------------------------------- screens
@@ -129,12 +203,9 @@ async function openSave(s) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   state.page = tab ? await describeTab(tab) : { url: '', title: '', image: '', savable: false };
   $('title').value = state.page.title;
-  let host = '';
-  try {
-    host = new URL(state.page.url).hostname.replace(/^www\./, '');
-  } catch {}
-  $('domain').textContent = host;
-  $('cover-letter').textContent = (host[0] || '•').toUpperCase();
+  const h = host(state.page.url);
+  $('domain').textContent = h;
+  $('cover-letter').textContent = (h[0] || '•').toUpperCase();
   if (state.page.image) {
     const img = $('cover-img');
     img.onload = () => (img.hidden = false);
@@ -149,8 +220,10 @@ async function openSave(s) {
     state.folders = data.folders;
     const keep = state.folder?.name ?? lastFolder;
     state.folder = data.folders.find((f) => String(f.name).toLowerCase() === String(keep || '').toLowerCase()) || null;
+    state.items = data.items;
     renderFolders();
     renderRecent(data.items);
+    if (!$('pane-saved').hidden) renderLib();
     if (data.name) $('me-name').textContent = data.name;
   };
   if (cache?.email === s.email) apply(cache); // instant, then refresh
@@ -257,6 +330,12 @@ $('add-note').onclick = () => {
   $('note').focus();
 };
 $('save').onclick = doSave;
+$('tab-save').onclick = () => setTab(false);
+$('tab-saved').onclick = () => setTab(true);
+$('add-remind').onclick = () => {
+  $('add-remind').hidden = true;
+  $('remind-box').hidden = false;
+};
 $('title').addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();

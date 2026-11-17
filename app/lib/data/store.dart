@@ -275,6 +275,31 @@ class AppStore extends ChangeNotifier {
     _rollover();
     final n = now();
     final wasToday = it.whenTs > 0 && it.whenTs < DateTime(n.year, n.month, n.day + 1).millisecondsSinceEpoch;
+    if (it.repeats) {
+      // Repeating: done for now, comes back on its next day. Steps reset.
+      final prevTs = it.whenTs;
+      final prevTasks = [for (final t in it.tasks) t.done];
+      final base = DateTime.fromMillisecondsSinceEpoch(prevTs);
+      final after = n.isAfter(base) ? n : base;
+      it.setWhenTs(nextRepeat(base, it.repeatDays, DateTime(after.year, after.month, after.day + 1)).millisecondsSinceEpoch);
+      for (final t in it.tasks) {
+        t.done = false;
+      }
+      it.updatedAt = n.millisecondsSinceEpoch;
+      if (wasToday) doneToday++;
+      revisitedTotal++;
+      _save();
+      return () {
+        it.setWhenTs(prevTs);
+        for (var i = 0; i < it.tasks.length && i < prevTasks.length; i++) {
+          it.tasks[i].done = prevTasks[i];
+        }
+        it.updatedAt = now().millisecondsSinceEpoch;
+        if (wasToday && doneToday > 0) doneToday--;
+        if (revisitedTotal > 0) revisitedTotal--;
+        _save();
+      };
+    }
     it.completedAt = n.millisecondsSinceEpoch;
     it.updatedAt = it.completedAt;
     if (wasToday) doneToday++;
@@ -544,6 +569,31 @@ class AppStore extends ChangeNotifier {
       doneDay = k;
       doneToday = 0;
     }
+    rollRepeats();
+  }
+
+  /// Repeating items left from an earlier day move to their next day (from today on).
+  bool rollRepeats() {
+    final n = now();
+    final today = DateTime(n.year, n.month, n.day);
+    var changed = false;
+    for (final it in items) {
+      if (!it.repeats || it.isDone || it.whenTs >= today.millisecondsSinceEpoch) continue;
+      it.setWhenTs(nextRepeat(DateTime.fromMillisecondsSinceEpoch(it.whenTs), it.repeatDays, today).millisecondsSinceEpoch);
+      for (final t in it.tasks) {
+        t.done = false;
+      }
+      it.updatedAt = n.millisecondsSinceEpoch;
+      changed = true;
+    }
+    return changed;
+  }
+
+  void setRepeat(String id, List<int> days) {
+    final it = byId(id);
+    if (it == null) return;
+    it.repeatDays = days;
+    touchItem(it);
   }
 
   void _save({bool local = true}) {

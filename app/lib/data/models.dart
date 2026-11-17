@@ -57,6 +57,25 @@ class Item {
   /// The moment this item wants you back (reminder for links/reminders, due for to-dos).
   int get whenTs => reminder > 0 ? reminder : dueAt;
 
+  /// Weekdays this repeats on (1 = Mon … 7 = Sun). Empty = once.
+  List<int> get repeatDays => ((extra['repeat'] as List?) ?? const []).map((e) => (e as num).toInt()).where((d) => d >= 1 && d <= 7).toSet().toList()..sort();
+  set repeatDays(List<int> d) {
+    if (d.isEmpty) {
+      extra.remove('repeat');
+    } else {
+      extra['repeat'] = d.toSet().toList()..sort();
+    }
+  }
+  bool get repeats => repeatDays.isNotEmpty && kind != ItemKind.link && whenTs > 0;
+
+  void setWhenTs(int ts) {
+    if (kind == ItemKind.todoList) {
+      dueAt = ts;
+    } else {
+      reminder = ts;
+    }
+  }
+
   String get domain {
     if (url.isEmpty) return '';
     final u = Uri.tryParse(url.contains('://') ? url : 'https://$url');
@@ -143,3 +162,23 @@ class Folder {
 }
 
 int _int(Object? v) => v is int ? v : v is num ? v.toInt() : int.tryParse('${v ?? ''}') ?? 0;
+
+
+/// "Every day", "Mon–Fri", "Weekends", or "Mon, Wed, Fri".
+String repeatLabel(List<int> d) {
+  if (d.isEmpty) return 'Once';
+  if (d.length == 7) return 'Every day';
+  if (d.length == 5 && !d.contains(6) && !d.contains(7)) return 'Mon–Fri';
+  if (d.length == 2 && d.contains(6) && d.contains(7)) return 'Weekends';
+  const n = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  return d.map((x) => n[x - 1]).join(', ');
+}
+
+/// The next time on one of [days] at [base]'s clock time, at or after [from].
+DateTime nextRepeat(DateTime base, List<int> days, DateTime from) {
+  for (var i = 0; i < 8; i++) {
+    final d = DateTime(from.year, from.month, from.day + i, base.hour, base.minute);
+    if (days.contains(d.weekday) && !d.isBefore(from)) return d;
+  }
+  return base;
+}

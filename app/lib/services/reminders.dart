@@ -188,7 +188,8 @@ class Reminders {
       _scheduled.clear();
       if (!store.notifOn) return;
       final now = DateTime.now();
-      final up = store.items.where((i) => !i.isDone && i.extra['msg'] != true && i.whenTs > now.millisecondsSinceEpoch && !store.isMutedName(i.folder)).toList()
+      final live = store.items.where((i) => !i.isDone && i.extra['msg'] != true && i.whenTs > 0 && !store.isMutedName(i.folder));
+      final up = live.where((i) => !i.repeats && i.whenTs > now.millisecondsSinceEpoch).toList()
         ..sort((a, b) => a.whenTs.compareTo(b.whenTs));
       final a = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       var exact = true;
@@ -208,6 +209,29 @@ class Reminders {
           body: it.title,
           payload: it.id,
         );
+      }
+      // Repeating to-dos and reminders: Android repeats these by itself.
+      for (final it in live.where((i) => i.repeats).take(24)) {
+        final base = DateTime.fromMillisecondsSinceEpoch(it.whenTs);
+        final from = base.isAfter(now) ? base : now;
+        final days = it.repeatDays;
+        final every = days.length == 7;
+        for (final d in every ? [0] : days) {
+          var at = nextRepeat(base, every ? days : [d], from);
+          at = _quiet(at);
+          final nid = 1000 + ((it.id.hashCode + d * 7919) & 0x3fffffff);
+          _scheduled.add(nid);
+          await _plugin.zonedSchedule(
+            id: nid,
+            scheduledDate: tz.TZDateTime.from(at, tz.local),
+            notificationDetails: NotificationDetails(android: _details()),
+            androidScheduleMode: exact ? AndroidScheduleMode.exactAllowWhileIdle : AndroidScheduleMode.inexactAllowWhileIdle,
+            matchDateTimeComponents: every ? DateTimeComponents.time : DateTimeComponents.dayOfWeekAndTime,
+            title: _sharedFolder(it.folder) != null ? '${_sharedFolder(it.folder)} · ${_question(it)}' : '${store.mascotName} says: ${_question(it)}',
+            body: it.title,
+            payload: it.id,
+          );
+        }
       }
     } catch (_) {}
   }

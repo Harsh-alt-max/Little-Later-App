@@ -40,6 +40,10 @@ Future<void> go(WidgetTester tester, [int ms = 800]) async {
 }
 
 Future<void> tapText(WidgetTester tester, String s, [int ms = 800]) async {
+  // Lazy lists (the save sheet) only build what's on screen: scroll to it first.
+  if (find.text(s).evaluate().isEmpty) {
+    await tester.dragUntilVisible(find.text(s), find.byType(Scrollable).last, const Offset(0, -200));
+  }
   // Centre it so the dock and toasts never cover the target.
   Scrollable.ensureVisible(tester.element(find.text(s).last), alignment: .4);
   await go(tester, 300);
@@ -281,12 +285,43 @@ void main() {
     }
     final eyes = find.byKey(const Key('ll-peek'));
     expect(eyes, findsWidgets);
+    await go(tester, 2500); // still holding: stays down, keeps blinking
+    expect(eyes, findsWidgets);
     await g.up();
     await go(tester, 400);
-    expect(eyes, findsWidgets); // held open while blinking + refreshing
-    await go(tester, 2000);
-    expect(eyes, findsNothing); // back up
+    expect(eyes, findsNothing); // let go: straight back up
     await go(tester, 3000);
+  });
+
+  testWidgets('to-dos show their steps in grid view and can be ticked', (tester) async {
+    final store = await pump(tester);
+    final todo = store.items.firstWhere((i) => i.kind == ItemKind.todoList && i.tasks.isNotEmpty);
+    store.setPrefs(view: 'grid');
+    await tab(tester, 'Saved');
+    await tester.tap(find.text('To-dos').first);
+    await go(tester, 600);
+    final step = todo.tasks.firstWhere((t) => !t.done);
+    expect(find.text(step.text), findsWidgets);
+    await tester.tap(find.text(step.text).first);
+    await go(tester, 400);
+    expect(step.done, isTrue);
+    await go(tester, 4000);
+  });
+
+  testWidgets('new reminder: no folder by default, repeat Mon–Fri', (tester) async {
+    final store = await pump(tester);
+    await tab(tester, 'Save a new idea');
+    await tapText(tester, 'Reminder');
+    await tester.enterText(find.byType(EditableText).first, 'Drink water');
+    await go(tester, 300);
+    await tester.ensureVisible(find.text('Mon–Fri'));
+    await tapText(tester, 'Mon–Fri');
+    await tapText(tester, 'Set reminder', 1500);
+    final it = store.items.first;
+    expect(it.title, 'Drink water');
+    expect(it.folder, '');
+    expect(it.repeatDays, [1, 2, 3, 4, 5]);
+    await go(tester, 4000);
   });
 
   testWidgets('shared folder ⋯ has Mute group', (tester) async {
