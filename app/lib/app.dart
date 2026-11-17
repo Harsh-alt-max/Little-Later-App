@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:app_links/app_links.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:material_ui/material_ui.dart';
 
 import 'data/models.dart';
@@ -49,6 +50,8 @@ class LittleLaterApp extends StatelessWidget {
       return MaterialApp(
         title: 'Little Later',
         debugShowCheckedModeBanner: false,
+        // Drag with a mouse too (the web preview), not just fingers.
+        scrollBehavior: const MaterialScrollBehavior().copyWith(dragDevices: PointerDeviceKind.values.toSet()),
         theme: buildTheme(ll),
         home: AnnotatedRegion<SystemUiOverlayStyle>(
           value: (ll.dark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark).copyWith(

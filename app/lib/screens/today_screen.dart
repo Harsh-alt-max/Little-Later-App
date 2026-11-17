@@ -907,7 +907,7 @@ class _NextCardState extends State<_NextCard> with SingleTickerProviderStateMixi
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (it.url.isNotEmpty) ...[
+            if (it.url.isNotEmpty && it.thumbnail.isNotEmpty) ...[
               Tap(
                 scale: .98,
                 onTap: widget.onOpen,

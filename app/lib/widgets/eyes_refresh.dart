@@ -172,7 +172,7 @@ class _EyesRefreshState extends State<EyesRefresh> with TickerProviderStateMixin
           angle: _lookX * .09,
           alignment: Alignment(0, (cropV / 110) - 1),
           // Both pictures stay loaded, so blinking never flickers.
-          child: IndexedStack(index: shut ? 1 : 0, children: [_open!, _shut!]),
+          child: IndexedStack(index: shut ? 1 : 0, sizing: StackFit.expand, children: [_open!, _shut!]),
         ),
       ),
     ]);
