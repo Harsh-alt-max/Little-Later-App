@@ -119,7 +119,7 @@ class _MascotViewState extends State<MascotView> with TickerProviderStateMixin {
     _blinkTimer = Timer(Duration(milliseconds: 2400 + _rand.nextInt(2800)), () {
       if (!mounted) return;
       final m = widget.controller?.current ?? widget.staticMood;
-      if (m == Mood.idle) {
+      if (m == Mood.idle || m == Mood.listen) {
         setState(() => _blink = true);
         _blinkOff = Timer(const Duration(milliseconds: 120), () {
           if (mounted) setState(() => _blink = false);
@@ -206,6 +206,7 @@ class _MascotViewState extends State<MascotView> with TickerProviderStateMixin {
       blink: _blink,
       cover: widget.cover,
       zzColor: '#${(ll.ink3.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}',
+      accent: '#${(ll.blue.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}',
     );
     final pic = SvgPicture.string(svg, fit: BoxFit.contain, allowDrawingOutsideViewBox: true);
     final floaty = widget.stage >= 4;

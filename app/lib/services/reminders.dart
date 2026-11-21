@@ -45,7 +45,7 @@ class Reminders {
       enableVibration: v,
       vibrationPattern: v ? _strong : null,
       groupKey: group,
-      color: const Color(0xFF3D7BFF),
+      color: const Color(0xFFF08A6C),
     );
   }
 
@@ -171,12 +171,11 @@ class Reminders {
 
   /// Move a time out of quiet hours (your own hours, e.g. 11 pm–7 am) to when they end.
   DateTime _quiet(DateTime d) {
-    if (!store.quietOn || store.quietFrom == store.quietTo) return d;
-    final f = store.quietFrom, to = store.quietTo, h = d.hour;
-    final inside = f < to ? (h >= f && h < to) : (h >= f || h < to);
-    if (!inside) return d;
-    final sameDay = f < to || h < to;
-    return DateTime(d.year, d.month, d.day + (sameDay ? 0 : 1), to);
+    if (!store.inQuiet(d)) return d;
+    final to = store.quietToMin;
+    var e = DateTime(d.year, d.month, d.day, to ~/ 60, to % 60);
+    if (!e.isAfter(d)) e = e.add(const Duration(days: 1));
+    return e;
   }
 
   Future<void> reschedule() async {

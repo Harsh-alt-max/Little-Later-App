@@ -23,11 +23,11 @@ const kMiles = [3, 5, 10, 21, 33];
 
 /// Outfit names per style and heart cost per outfit slot (v7 OUTFITS / COST).
 const kOutfits = {
-  MascotStyle.girl: ['Everyday', 'Cozy cardigan', 'Starlight dress'],
-  MascotStyle.teen: ['Everyday', 'Hoodie and beats', 'Space explorer'],
-  MascotStyle.man: ['Everyday', 'Weekend flannel', 'Sharp suit'],
+  MascotStyle.girl: kLilOutfits,
+  MascotStyle.teen: kLilOutfits,
+  MascotStyle.man: kLilOutfits,
 };
-const kOutfitCost = [0, 10, 23];
+const kOutfitCost = kLilOutfitCost;
 
 Level levelOf(int xp) => kLevels.lastWhere((l) => xp >= l.min);
 
@@ -82,6 +82,14 @@ class AppStore extends ChangeNotifier {
   bool quietOn = true;
   int morningHour = 9;
   int quietFrom = 23;
+  int quietFromMin = 23 * 60; // minutes after midnight
+  int quietToMin = 7 * 60;
+  String quietDays = 'all'; // all | wk | we
+  String voiceLang = 'en-IN'; // en-IN | hi-IN
+
+  /// The last link saved, so "remind me to watch this tonight" finds it.
+  String lastLinkId = '';
+  int lastLinkAt = 0;
   int quietTo = 7;
   String viewMode = 'list'; // list | grid | large
   int tone = 0; // notification tune 0..2
@@ -318,7 +326,9 @@ class AppStore extends ChangeNotifier {
     final it = byId(id)!;
     final oldR = it.reminder, oldD = it.dueAt;
     final n = now();
-    final t = DateTime(n.year, n.month, n.day + 1, morningHour).millisecondsSinceEpoch;
+    // Later = tomorrow at the same time it was set for (9 am if it had no time).
+    final w = it.whenTs > 0 ? DateTime.fromMillisecondsSinceEpoch(it.whenTs) : null;
+    final t = (w != null ? DateTime(n.year, n.month, n.day + 1, w.hour, w.minute) : DateTime(n.year, n.month, n.day + 1, morningHour)).millisecondsSinceEpoch;
     if (it.reminder > 0 || it.dueAt == 0) {
       it.reminder = t;
     } else {
@@ -471,7 +481,7 @@ class AppStore extends ChangeNotifier {
     return amt;
   }
 
-  bool canUnlock(int i) => !ownedOutfits.contains(i) && (i == 0 || ownedOutfits.contains(i - 1)) && hearts >= kOutfitCost[i];
+  bool canUnlock(int i) => !ownedOutfits.contains(i) && hearts >= kOutfitCost[i];
 
   bool unlock(int i) {
     if (!canUnlock(i)) return false;
@@ -560,6 +570,44 @@ class AppStore extends ChangeNotifier {
 
   void setTheme(bool dark) => setPrefs(dark: dark);
 
+  void setQuiet({int? fromMin, int? toMin, String? days, bool? on}) {
+    if (fromMin != null) {
+      quietFromMin = fromMin;
+      quietFrom = fromMin ~/ 60;
+    }
+    if (toMin != null) {
+      quietToMin = toMin;
+      quietTo = toMin ~/ 60;
+    }
+    if (days != null) quietDays = days;
+    if (on != null) quietOn = on;
+    _save();
+  }
+
+  void setVoiceLang(String l) {
+    voiceLang = l;
+    _save();
+  }
+
+  /// Is [d] inside quiet hours?
+  bool inQuiet(DateTime d) {
+    if (!quietOn || quietFromMin == quietToMin) return false;
+    if (quietDays == 'wk' && d.weekday >= 6) return false;
+    if (quietDays == 'we' && d.weekday < 6) return false;
+    final m = d.hour * 60 + d.minute;
+    return quietFromMin < quietToMin ? m >= quietFromMin && m < quietToMin : m >= quietFromMin || m < quietToMin;
+  }
+
+  Item? get recentLink {
+    if (lastLinkId.isEmpty || now().millisecondsSinceEpoch - lastLinkAt > 30 * 60000) return null;
+    return byId(lastLinkId);
+  }
+
+  void markLinkSaved(Item it) {
+    lastLinkId = it.id;
+    lastLinkAt = now().millisecondsSinceEpoch;
+  }
+
   // ---------------------------------------------------------------------------
   // Persistence
 
@@ -621,6 +669,10 @@ class AppStore extends ChangeNotifier {
       'morningHour': morningHour,
       'quietFrom': quietFrom,
       'quietTo': quietTo,
+      'quietFromMin': quietFromMin,
+      'quietToMin': quietToMin,
+      'quietDays': quietDays,
+      'voiceLang': voiceLang,
       'view': viewMode,
       'tone': tone,
       'vibe': strongVibe,
@@ -672,6 +724,10 @@ class AppStore extends ChangeNotifier {
     morningHour = (p['morningHour'] as num?)?.toInt() ?? 9;
     quietFrom = (p['quietFrom'] as num?)?.toInt() ?? 23;
     quietTo = (p['quietTo'] as num?)?.toInt() ?? 7;
+    quietFromMin = (p['quietFromMin'] as num?)?.toInt() ?? quietFrom * 60;
+    quietToMin = (p['quietToMin'] as num?)?.toInt() ?? quietTo * 60;
+    quietDays = p['quietDays'] as String? ?? 'all';
+    voiceLang = p['voiceLang'] as String? ?? 'en-IN';
     viewMode = p['view'] as String? ?? 'list';
     tone = ((p['tone'] as num?)?.toInt() ?? 0).clamp(0, 2);
     strongVibe = p['vibe'] != false;

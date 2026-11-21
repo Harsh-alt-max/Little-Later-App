@@ -3,6 +3,19 @@ import 'package:material_ui/material_ui.dart';
 
 /// Stroke icon sprite ported from v7 (`<symbol id="i-…">`). Drawn at 24x24, recoloured with [color].
 const Map<String, String> kIconPaths = {
+  'mic': '<rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>',
+  'photo': '<rect x="3.5" y="5" width="17" height="14" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="M20 16l-5-5-8 8"/>',
+  'ext': '<path d="M14 5h5v5M19 5l-8 8"/><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/>',
+  'todo': '<rect x="4" y="4" width="16" height="16" rx="5"/><path d="M8.5 12l2.5 2.5 4.5-5"/>',
+  'up': '<path d="M12 19V5M6 11l6-6 6 6"/>',
+  'star': '<path d="M12 4l2.4 5 5.4.6-4 3.7 1.1 5.4L12 16l-4.9 2.7 1.1-5.4-4-3.7 5.4-.6z"/>',
+  'flame': '<path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-4 2.5-5 .3 1.6 1.2 2.6 2.5 3-.6-3 0-5.5 0-8z"/>',
+  'share': '<path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/>',
+  'chrome': '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.2"/><path d="M12 8.8h8M9.2 13.6 5.2 6.7M14.8 13.6l-4 6.9"/>',
+  'note': '<path d="M5 19h4l10-10-4-4L5 15z"/>',
+  'play': '<path d="M8 5.5v13l11-6.5z"/>',
+  'quiet': '<path d="M6 16V11a6 6 0 0 1 9.5-4.9M18 11v5l1.5 2H8"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0M4 4l16 16"/>',
+  'edit': '<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/>',
   'home': '<path d="M4 10.5 12 4l8 6.5V19a1.5 1.5 0 0 1-1.5 1.5H15v-5.5H9v5.5H5.5A1.5 1.5 0 0 1 4 19z"/>',
   'saved': '<path d="M7 4h10a1 1 0 0 1 1 1v15l-6-4-6 4V5a1 1 0 0 1 1-1z"/>',
   'folder': '<path d="M3.5 7a1.5 1.5 0 0 1 1.5-1.5h4.4l2 2.2H19a1.5 1.5 0 0 1 1.5 1.5v8.3A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z"/>',

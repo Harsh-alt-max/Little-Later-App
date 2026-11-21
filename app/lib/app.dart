@@ -11,20 +11,23 @@ import 'data/store.dart';
 import 'mascot/mascot_svg.dart';
 import 'mascot/mascot_view.dart';
 import 'screens/folders_screen.dart';
-import 'screens/lil_screen.dart';
 import 'screens/onboarding.dart';
-import 'screens/profile_screen.dart';
-import 'screens/reminder_screen.dart';
-import 'screens/save_sheet.dart';
-import 'screens/saved_screen.dart';
-import 'screens/today_screen.dart';
 import 'services/auth.dart';
 import 'services/reminders.dart';
 import 'services/sync.dart';
 import 'services/link_meta.dart';
 import 'theme/tokens.dart';
 import 'widgets/common.dart';
-import 'widgets/dock.dart';
+import 'ui/dock.dart';
+import 'ui/folders.dart';
+import 'ui/lil.dart';
+import 'ui/profile.dart';
+import 'ui/ring.dart';
+import 'ui/save.dart' as v2;
+import 'ui/saved.dart';
+import 'ui/sheets.dart';
+import 'ui/today.dart';
+import 'ui/voice.dart';
 import 'services/haptics.dart';
 
 class Services {
@@ -85,6 +88,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
   bool _searchFocus = false;
   Folder? _folder;
   (Level, Level)? _levelUp;
+  HiResult? _hello;
   bool _sheetOpen = false;
   final List<StreamSubscription> _subs = [];
   String? _pendingJoin;
@@ -108,6 +112,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
     if (store.signedIn) sync.start(store.userEmail);
     _subs.add(reminders.tapped.listen(_openReminderId));
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkIn();
       if (store.onboarded && store.notifOn) reminders.askPermission();
       final id = reminders.launchItemId;
       if (id != null) _openReminderId(id);
@@ -150,6 +155,18 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
     if (f != null) openFolder(f);
   }
 
+  /// The streak counts when you open the app, once a day.
+  void _checkIn() {
+    if (!store.onboarded) return;
+    final r = store.sayHi();
+    if (r == null) return;
+    if (r.freezeEarned) store.addNote(Note(text: 'Day ${r.streak}! You earned a streak freeze', icon: 'snow'));
+    if (kMiles.contains(r.streak)) store.addNote(Note(text: 'Day ${r.streak}! Hearts are ready for ${store.mascotName}', icon: 'heart'));
+    Timer(const Duration(milliseconds: 700), () {
+      if (mounted) setState(() => _hello = r);
+    });
+  }
+
   void _openReminderId(String id) {
     final it = store.byId(id);
     if (it != null && store.onboarded) openReminder(it);
@@ -160,6 +177,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
     if (s == AppLifecycleState.paused) sync.flush();
     if (s == AppLifecycleState.resumed) {
       store.reloadFromDisk(); // pick up saves made from the share window
+      _checkIn();
       setState(() {}); // refresh "due now", greeting
     }
   }
@@ -201,7 +219,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
       return;
     }
     setState(() => _sheetOpen = true);
-    await openSaveSheet(_c, url: url, folder: folder);
+    await v2.openSave(_c, text: url, folder: folder, mode: url.isEmpty ? v2.Mode.link : v2.Mode.link);
     if (mounted) setState(() => _sheetOpen = false);
   }
 
@@ -213,12 +231,12 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
   Future<void> openQuickSave2(String text) async {
     // Close anything already open so the quick save sits on top of the app.
     Navigator.of(_c).popUntil((r) => r.isFirst);
-    await openQuickSaveSheet(_c, text);
+    await v2.openSave(_c, text: text);
   }
 
   @override
   void openLil({bool streak = false}) {
-    Navigator.of(_c).push(_slideUp(_wrap(LilScreen(scrollToStreak: streak))));
+    Navigator.of(_c).push(_slideUp(_wrap(const LilCorner())));
   }
 
   @override
@@ -227,7 +245,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
       PageRouteBuilder(
         opaque: true,
         transitionDuration: const Duration(milliseconds: 450),
-        pageBuilder: (_, _, _) => _wrap(ReminderScreen(item: item)),
+        pageBuilder: (_, _, _) => _wrap(RingScreen(item: item)),
         transitionsBuilder: (_, a, _, c) => FadeTransition(
           opacity: a,
           child: ScaleTransition(
@@ -249,7 +267,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
   }
 
   @override
-  void openNotes() => openNotesSheet(_c);
+  void openNotes() => notesSheet(_c);
 
   @override
   void gain(int n, {String? line}) {
@@ -408,10 +426,10 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
     }
     final forward = _tab > _prevTab || _folder != null;
     final Widget screen = switch (_tab) {
-      0 => TodayScreen(key: const ValueKey('today'), scroll: _todayScroll, bubble: _bubble),
-      1 => SavedScreen(key: ValueKey('saved$_searchFocus'), autofocus: _searchFocus),
-      2 => _folder != null ? FolderDetail(key: ValueKey('fd-${_folder!.name}'), folder: _folder!, onBack: () => setState(() => _folder = null)) : const FoldersScreen(key: ValueKey('folders')),
-      _ => const ProfileScreen(key: ValueKey('profile')),
+      0 => TodayView(key: const ValueKey('today'), scroll: _todayScroll),
+      1 => SavedView(key: ValueKey('saved$_searchFocus'), autofocus: _searchFocus),
+      2 => _folder != null ? FolderDetail(key: ValueKey('fd-${_folder!.name}'), folder: _folder!, onBack: () => setState(() => _folder = null)) : const FoldersView(key: ValueKey('folders')),
+      _ => const ProfileView(key: ValueKey('profile')),
     };
 
     return PopScope(
@@ -438,12 +456,11 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
           resizeToAvoidBottomInset: false,
           body: Stack(
             children: [
-              if (ll.dark)
-                const Positioned.fill(
+              const Positioned.fill(
                   child: IgnorePointer(
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        gradient: RadialGradient(center: Alignment(0, -.32), radius: .9, colors: [Color(0x0A5A7DFF), Color(0x005A7DFF)], stops: [0, .7]),
+                        gradient: RadialGradient(center: Alignment(0, -1.1), radius: 1.0, colors: [Color(0x1FFF9F7E), Color(0x00FF9F7E)], stops: [0, .7]),
                       ),
                     ),
                   ),
@@ -468,9 +485,9 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
                   child: screen,
                 ),
               ),
-              if (MediaQuery.viewInsetsOf(context).bottom == 0)
+              if (MediaQuery.viewInsetsOf(context).bottom == 0 && !(_folder != null && _tab == 2 && _folder!.collab && false))
                 Builder(
-                  builder: (context) => Dock(
+                  builder: (context) => Dock2(
                     index: _tab,
                     plusOpen: _sheetOpen,
                     onTab: (i) {
@@ -478,6 +495,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
                       _goTab(i);
                     },
                     onPlus: () => openSave(folder: _folder?.name ?? ''),
+                    onMic: () => openVoice(_c, folder: _folder?.name ?? ''),
                   ),
                 ),
               // Keeps scrolled content from showing under the status bar.
@@ -499,6 +517,17 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
                   ),
                 ),
               ),
+              if (_hello != null)
+                Positioned.fill(
+                  child: StreakMoment(
+                    result: _hello!,
+                    onClose: () => setState(() => _hello = null),
+                    onOpenLil: () {
+                      setState(() => _hello = null);
+                      openLil();
+                    },
+                  ),
+                ),
               ToastView(controller: _toast, onUndo: _undo),
               if (_levelUp != null)
                 Positioned.fill(

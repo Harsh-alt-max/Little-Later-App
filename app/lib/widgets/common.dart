@@ -294,7 +294,6 @@ class ToastView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ll = LL.of(context);
-    final inset = MediaQuery.paddingOf(context).bottom;
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) {
@@ -302,11 +301,11 @@ class ToastView extends StatelessWidget {
         return Positioned(
           left: 20,
           right: 20,
-          bottom: 100 + inset,
+          top: MediaQuery.paddingOf(context).top + 8,
           child: IgnorePointer(
             ignoring: !on,
             child: AnimatedSlide(
-              offset: on ? Offset.zero : const Offset(0, .5),
+              offset: on ? Offset.zero : const Offset(0, -.6),
               duration: const Duration(milliseconds: 450),
               curve: Motion.spring,
               child: AnimatedOpacity(

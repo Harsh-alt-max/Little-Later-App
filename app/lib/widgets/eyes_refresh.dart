@@ -143,22 +143,20 @@ class _EyesRefreshState extends State<EyesRefresh> with TickerProviderStateMixin
 
   Widget _peek(BuildContext context, double pull) {
     final st = AppScope.of(context).store;
-    final stage = st.level.n.clamp(1, 5);
-    final sc = const [.74, .8, .87, .93, 1.0][stage - 1];
-    // Same size on every level: about 130 px from ear tips to just under the eyes.
+    // Same size every time: about 130 px from ear tips to just under the eyes.
     const visH = 130.0;
-    final k = visH / (103 * sc);
-    final cropV = 207 - 92 * sc; // just below the eyes, in the mascot's own units
+    const k = visH / 118;
+    const cropV = 142.0; // just below the eyes, in the mascot's own units
     final shown = (pull * .95).clamp(0.0, visH);
     final cropY = pull + (visH - shown);
     final shut = _blinkAmount(_blink.value) > .5;
-    final key = '$stage/${st.mascotStyle}/${st.outfitNow}';
+    final key = '${st.outfitNow}';
     if (key != _key) {
       _key = key;
-      _open = SvgPicture.string(mascotSvg(stage: stage, style: st.mascotStyle, outfit: st.outfitNow, mood: Mood.wow), fit: BoxFit.contain, allowDrawingOutsideViewBox: true);
-      _shut = SvgPicture.string(mascotSvg(stage: stage, style: st.mascotStyle, outfit: st.outfitNow, mood: Mood.wow, blink: true), fit: BoxFit.contain, allowDrawingOutsideViewBox: true);
+      _open = SvgPicture.string(mascotSvg(outfit: st.outfitNow), fit: BoxFit.contain, allowDrawingOutsideViewBox: true);
+      _shut = SvgPicture.string(mascotSvg(outfit: st.outfitNow, blink: true), fit: BoxFit.contain, allowDrawingOutsideViewBox: true);
     }
-    final w = 200 * k, h = 220 * k;
+    const w = 212 * k, h = 212 * k;
     final x = (MediaQuery.sizeOf(context).width - w) / 2;
     return Stack(clipBehavior: Clip.none, children: [
       Positioned(
@@ -170,7 +168,7 @@ class _EyesRefreshState extends State<EyesRefresh> with TickerProviderStateMixin
         // Leans towards your finger.
         child: Transform.rotate(
           angle: _lookX * .09,
-          alignment: Alignment(0, (cropV / 110) - 1),
+          alignment: Alignment(0, (cropV / 106) - 1),
           // Both pictures stay loaded, so blinking never flickers.
           child: IndexedStack(index: shut ? 1 : 0, sizing: StackFit.expand, children: [_open!, _shut!]),
         ),

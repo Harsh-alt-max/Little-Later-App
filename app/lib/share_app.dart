@@ -6,7 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'data/models.dart';
 import 'data/store.dart';
 import 'mascot/mascot_view.dart';
-import 'screens/save_sheet.dart';
+import 'ui/save.dart' show ShareSave;
 import 'services/auth.dart';
 import 'services/haptics.dart';
 import 'services/reminders.dart';
@@ -149,7 +149,7 @@ class _ShareAppState extends State<ShareApp> implements AppActions {
                 child: _joinMsg != null
                     ? _joinCard(ll)
                     : Builder(
-                        builder: (_) => QuickSave(text: widget.text, onDone: close, onSaved: _afterSave),
+                        builder: (_) => ShareSave(text: widget.text, onDone: close, onSaved: _afterSave),
                       ),
               ),
               ToastView(controller: _toast, onUndo: () {}),

@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import '../data/models.dart';
 import '../data/store.dart';
 import '../theme/tokens.dart';
+import '../ui/items.dart' as v2;
 import '../widgets/common.dart';
 import '../widgets/eyes_refresh.dart';
 import '../widgets/icons.dart';
@@ -319,7 +320,6 @@ class FolderDetail extends StatefulWidget {
 }
 
 class _FolderDetailState extends State<FolderDetail> {
-  String? _open;
   int _view = 0; // shared folders: 0 = Saved, 1 = Chat
   final _scroll = ScrollController();
   final _msg = TextEditingController();
@@ -559,22 +559,10 @@ class _FolderDetailState extends State<FolderDetail> {
                             height: 52,
                             child: Stack(
                               children: [
-                                Container(
-                                  width: 32,
-                                  height: 16,
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFF22328A),
-                                    borderRadius: BorderRadius.only(topLeft: Radius.circular(8), topRight: Radius.circular(10)),
-                                  ),
-                                ),
                                 Positioned.fill(
-                                  top: 7,
                                   child: Container(
-                                    decoration: const BoxDecoration(
-                                      borderRadius: BorderRadius.only(topLeft: Radius.circular(4), topRight: Radius.circular(14), bottomLeft: Radius.circular(14), bottomRight: Radius.circular(14)),
-                                      gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF6A8EFF), Color(0xFF3D6BF5)]),
-                                    ),
-                                    child: Center(child: LLIcon(f.iconKey, color: Colors.white)),
+                                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), color: ll.stripe),
+                                    child: Center(child: LLIcon(f.iconKey, color: ll.ink)),
                                   ),
                                 ),
                               ],
@@ -621,9 +609,9 @@ class _FolderDetailState extends State<FolderDetail> {
                                     decoration: BoxDecoration(color: ll.blue, borderRadius: BorderRadius.circular(99)),
                                     child: Row(
                                       children: [
-                                        LLIcon(f.collab ? 'plus' : 'users', size: 18, color: Colors.white),
+                                        LLIcon(f.collab ? 'plus' : 'users', size: 18, color: ll.onAccent),
                                         const SizedBox(width: 8),
-                                        Text(f.collab ? 'Invite' : 'Share', style: t(13.5, FontWeight.w700, Colors.white)),
+                                        Text(f.collab ? 'Invite' : 'Share', style: t(13.5, FontWeight.w700, ll.onAccent)),
                                       ],
                                     ),
                                   ),
@@ -650,30 +638,23 @@ class _FolderDetailState extends State<FolderDetail> {
                         if (chat)
                           _Chat(folder: f, items: st.inFolder(f.name)..sort((a, b) => a.savedAt.compareTo(b.savedAt)), mine: (it) => _mine(st, it), name: (it) => _senderName(st, it))
                         else ...[
+                          if (f.collab)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
+                              child: Row(children: [
+                                Opacity(opacity: .6, child: LLIcon(st.isMuted(f) ? 'quiet' : 'bell', size: 15, color: ll.ink)),
+                                const SizedBox(width: 8),
+                                Expanded(child: Text(st.isMuted(f) ? 'Muted. Reminders here won’t ping you.' : 'Reminders here ping everyone in the group. They only show inside this group.', style: t(13, FontWeight.w400, ll.ink2))),
+                              ]),
+                            ),
                           if (its.isEmpty)
                             Container(
                               padding: const EdgeInsets.symmetric(vertical: 22),
                               decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(28)),
                               child: Text('Empty for now. Add a link, reminder or to-do.', textAlign: TextAlign.center, style: t(14, FontWeight.w600, ll.ink3)),
                             )
-                          else if (st.viewMode != 'list')
-                            ItemCards(items: its, large: st.viewMode == 'large', inFolder: true, by: f.collab ? (it) => _senderName(st, it) : null)
                           else
-                            Card28(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-                              children: [
-                                for (final it in its)
-                                  ItemTile(
-                                    key: ValueKey(it.id),
-                                    item: it,
-                                    inFolder: true,
-                                    first: true,
-                                    by: f.collab ? _senderName(st, it) : null,
-                                    open: _open == it.id,
-                                    onToggle: () => setState(() => _open = _open == it.id ? null : it.id),
-                                  ),
-                              ],
-                            ),
+                            Transform.translate(offset: const Offset(-20, 0), child: SizedBox(width: MediaQuery.sizeOf(context).width, child: v2.ItemsView(items: its, view: st.viewMode, inFolder: true, by: f.collab))),
                           const SizedBox(height: 14),
                           Tap(
                             onTap: () {

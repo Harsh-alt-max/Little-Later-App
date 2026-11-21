@@ -33,52 +33,62 @@ class LL extends ThemeExtension<LL> {
   static const gold = Color(0xFFFFD54A);
   static const danger = Color(0xFFFF8A8A);
 
+  /// Daylight: warm paper, ink text, peach accent.
   static const light = LL(
     dark: false,
-    bg: Color(0xFFEEF2FB),
+    bg: Color(0xFFF6F4F1),
     surface: Color(0xFFFFFFFF),
-    surface2: Color(0xFFF4F6FC),
-    line: Color(0x120E1220),
-    ink: Color(0xFF0E1220),
-    ink2: Color(0x9E0E1220),
-    ink3: Color(0x610E1220),
+    surface2: Color(0xFFEFECE7),
+    line: Color(0x1217130F),
+    ink: Color(0xFF17130F),
+    ink2: Color(0x8017130F),
+    ink3: Color(0x4D17130F),
     onInk: Color(0xFFFFFFFF),
-    blue: Color(0xFF3D6BF5),
-    blue2: Color(0xFF6A8EFF),
-    blueSoft: Color(0xFFE3EAFF),
-    blueInk: Color(0xFF2B4FD0),
-    headA: Color(0xFFA9C0FF),
-    headB: Color(0xFFDCE6FF),
-    glass: Color(0xBDFFFFFF),
-    stripe: Color(0x123D6BF5),
-    shadow: [BoxShadow(color: Color(0x14283C8C), blurRadius: 30, offset: Offset(0, 10))],
+    blue: Color(0xFFEE6F47),
+    blue2: Color(0xFFF59274),
+    blueSoft: Color(0x1FEE6F47),
+    blueInk: Color(0xFFC9502A),
+    headA: Color(0x1AF0764F),
+    headB: Color(0xFFF6F4F1),
+    glass: Color(0xDBFFFFFF),
+    stripe: Color(0x0F16161A),
+    shadow: [],
   );
 
+  /// Midnight: near-black, warm ink, peach accent.
   static const darkTheme = LL(
     dark: true,
-    bg: Color(0xFF04050A),
-    surface: Color(0xFF0D1018),
-    surface2: Color(0xFF141824),
-    line: Color(0x12ECF0FF),
-    ink: Color(0xFFF2F4FA),
-    ink2: Color(0x99F2F4FA),
-    ink3: Color(0x57F2F4FA),
-    onInk: Color(0xFF090B12),
-    blue: Color(0xFF4D7CFF),
-    blue2: Color(0xFF7C9DFF),
-    blueSoft: Color(0x264D7CFF),
-    blueInk: Color(0xFFB6C8FF),
-    headA: Color(0x334D7CFF),
-    headB: Color(0xFF04050A),
-    glass: Color(0xB812151E),
-    stripe: Color(0x0D8CA5FF),
-    shadow: [BoxShadow(color: Color(0x40000000), blurRadius: 24, offset: Offset(0, 10))],
+    bg: Color(0xFF0A0A0C),
+    surface: Color(0xFF141418),
+    surface2: Color(0xFF1A1A1F),
+    line: Color(0x0FFFFFFF),
+    ink: Color(0xFFF4F1EC),
+    ink2: Color(0x6BF4F1EC),
+    ink3: Color(0x3DF4F1EC),
+    onInk: Color(0xFF0A0A0C),
+    blue: Color(0xFFFF9F7E),
+    blue2: Color(0xFFFFB59A),
+    blueSoft: Color(0x24FF9F7E),
+    blueInk: Color(0xFFFFB59A),
+    headA: Color(0x1FFF9F7E),
+    headB: Color(0xFF0A0A0C),
+    glass: Color(0xC71A1A1F),
+    stripe: Color(0x12FFFFFF),
+    shadow: [],
   );
+
+  /// Bottom sheets.
+  Color get sheet => dark ? const Color(0xF0121216) : const Color(0xF7FAF8F5);
+  /// Neutral tile behind icons, chips and segmented controls.
+  Color get chip => stripe;
+  /// Text on the accent colour.
+  Color get onAccent => const Color(0xFF17130F);
+  /// The streak flame.
+  Color get ember => dark ? const Color(0xFFF08A55) : const Color(0xFFE0662D);
 
   /// Shadow under blue buttons/tiles: 0 10px 24px rgba(61,107,245,.35)
   /// Kept very soft on purpose: heavy glows look artificial.
-  List<BoxShadow> blueGlow([double a = .35, double blur = 24, double y = 10]) =>
-      [BoxShadow(color: const Color(0xFF3D6BF5).withValues(alpha: a * .35), blurRadius: blur * .6, offset: Offset(0, y * .5))];
+  List<BoxShadow> blueGlow([double a = .35, double blur = 24, double y = 10]) => const [];
 
   /// color-mix(in srgb, var(--ink) p%, transparent)
   Color inkMix(double p) => ink.withValues(alpha: p);
@@ -99,10 +109,21 @@ class Motion {
   static const fly = Cubic(.5, 0, .2, 1);
 }
 
-const kFont = 'Manrope';
+const kFont = 'Geist';
+const kMono = 'GeistMono';
 
-TextStyle t(double size, FontWeight w, Color c, {double? ls, double? h}) =>
-    TextStyle(fontFamily: kFont, fontSize: size, fontWeight: w, color: c, letterSpacing: ls == null ? null : ls * size, height: h);
+/// Geist in three weights: 400 reading, 500 buttons/labels, 600 titles.
+TextStyle t(double size, FontWeight w, Color c, {double? ls, double? h}) => TextStyle(
+      fontFamily: kFont,
+      fontSize: size,
+      fontWeight: w.value >= 600 ? FontWeight.w600 : w.value >= 500 ? FontWeight.w500 : FontWeight.w400,
+      color: c,
+      letterSpacing: ls == null ? null : ls * size,
+      height: h,
+    );
+
+/// Tiny uppercase labels (TODAY · 7:30 PM).
+TextStyle mono(Color c, {double size = 11}) => TextStyle(fontFamily: kMono, fontSize: size, fontWeight: FontWeight.w500, color: c, letterSpacing: .08 * size, height: 1.3);
 
 ThemeData buildTheme(LL ll) => ThemeData(
       brightness: ll.dark ? Brightness.dark : Brightness.light,

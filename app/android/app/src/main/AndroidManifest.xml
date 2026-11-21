@@ -7,6 +7,8 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Voice: "call mom 9pm tomorrow" -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <application
         android:label="Little Later"
@@ -75,6 +77,9 @@
     </application>
 
     <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT" />
             <data android:mimeType="text/plain" />
