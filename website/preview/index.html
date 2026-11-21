@@ -680,6 +680,18 @@ h1.page.in{animation:titleIn .8s var(--ease) both;animation-delay:calc(var(--i,0
 .wmic b{color:var(--blue-ink);font-weight:600}
 .wmic.on{outline:1.5px solid var(--blue);outline-offset:-1.5px}
 .wmic.on svg{color:var(--blue);animation:earPerk 1s infinite}
+/* v11: bar morph, quiet hours */
+.sb-tap{flex:1;height:100%;text-align:left;font-size:15px;color:var(--ink3);font-weight:500;background:none;cursor:text;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.savebar{transition:opacity .15s}
+.sheet.morphing{transition:none!important}
+.tsplit{display:flex;flex-direction:column;gap:0;margin-top:8px}
+.tsplit .sp-row{background:var(--chipbg)}
+.qh{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.qh label{display:flex;flex-direction:column;gap:6px;background:var(--card);border-radius:18px;padding:12px 14px}
+.qh label span{font-size:13px;color:var(--ink2);font-weight:500}
+.qh input{border:0;outline:0;background:none;color:var(--ink);font:inherit;font-size:22px;font-weight:600;color-scheme:dark light;width:100%}
+[data-dir=daylight] .qh input{color-scheme:light}
+[data-dir=midnight] .qh input{color-scheme:dark}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
@@ -847,7 +859,7 @@ const S = {
   ],
   draft: null,
   me: { name: 'Harsh', email: 'harsh@example.com' },
-  vlang: 'en-IN',
+  vlang: 'en-IN', qFrom: '23:00', qTo: '07:00', qDays: 'all',
   lil: { name: 'Lil', xp: 240, hearts: 5, freezes: 2, collected: [3, 5], outfit: 0, owned: [0], last: '' },
   notes: [
     { t: '“Anniversary gift ideas” is due at 6:30 pm', ic: 'bell', ago: '5 min ago', unread: true },
@@ -858,7 +870,7 @@ const S = {
 };
 let nextId = 100;
 // keep your changes between visits (this browser only)
-const STORE = 'littlelater-preview-v1', KEEP = ['vlang', 'me', 'lil', 'notes', 'items', 'folders', 'chat', 'view', 'dir', 'tone', 'vibe', 'quiet', 'streak', 'doneToday', 'logo', 'word'];
+const STORE = 'littlelater-preview-v1', KEEP = ['qFrom', 'qTo', 'qDays', 'vlang', 'me', 'lil', 'notes', 'items', 'folders', 'chat', 'view', 'dir', 'tone', 'vibe', 'quiet', 'streak', 'doneToday', 'logo', 'word'];
 try {
   if (/[?&]reset/.test(location.search)) localStorage.removeItem(STORE);
   const saved = JSON.parse(localStorage.getItem(STORE) || 'null');
@@ -951,12 +963,10 @@ function today() {
   return `<div class="top in" style="--i:0"><span class="logo"><span style="border-radius:10px;overflow:hidden;display:grid">${mark(S.logo, 34)}</span><span class="date">Sat, 21 Nov</span></span><div style="display:flex;gap:8px;align-items:center"><button class="pill press flamepill" data-act="lil-open" aria-label="${S.streak} day streak">${I.flame}${S.streak}</button><button class="pill press" data-act="notes" aria-label="Notifications" style="width:34px;padding:0;justify-content:center;position:relative">${I.bell}${S.notes.some((n) => n.unread) ? '<i class="ndot" style="position:absolute;top:6px;right:7px"></i>' : ''}</button><button class="avatar press" data-tab="profile" aria-label="Profile">${esc(S.me.name[0] || 'H').toUpperCase()}</button></div></div>
     <p class="sentence in" style="--i:1">${sentence}</p>
     <form class="savebar in" style="--i:2" id="savebar" onsubmit="return false">
-      <span class="nlwrap"><span class="mirror" id="smirror"></span><input id="sin" placeholder="Paste a link or type a reminder" autocomplete="off" aria-label="Paste a link or type a reminder"></span>
+      <button type="button" class="sb-tap" id="sbtap" data-act="bar-open" aria-label="Paste a link or type a reminder">Paste a link or type a reminder</button>
       <label class="sb-btn press" aria-label="Add a photo">${I.photo}<input type="file" accept="image/*" id="sphoto" hidden></label>
       <button type="button" class="sb-btn press" data-act="voice" aria-label="Speak">${I.mic}</button>
-      <button type="submit" class="sb-go press" id="sgo" aria-label="Add" disabled>${I.up}</button>
     </form>
-    <div class="sb-detect" id="sdetect"></div>
     ${stack}
     ${list}<div style="height:24px"></div>`;
 }
@@ -1076,7 +1086,7 @@ function profile() {
       ${set(I.moon, 'Light mode', 'Daylight look. Off = Midnight', tog(S.dir === 'daylight', 'next-look'), 'next-look')}
       ${set(I.music, 'Reminder sound', tones[S.tone] + ' · plays 3 times', '<span class="meta" style="margin-left:auto">Change</span>', 'tone')}
       ${set(I.vibe, 'Strong vibration', 'A 2 second buzz', tog(S.vibe, 'vibe'), 'vibe')}
-      ${set(I.quiet, 'Quiet hours', '11 pm to 7 am', tog(S.quiet, 'quiet'), 'quiet')}
+      ${set(I.quiet, 'Quiet hours', S.quiet ? qLabel() : 'Off', tog(S.quiet, 'quiet'), 'quiet-edit')}
       ${set(I.bell, 'Try a notification', 'See how a reminder arrives', '<span class="meta" style="margin-left:auto">Send</span>', 'test-notif')}
     </div>
     <div class="card in" style="--i:4">
@@ -1294,6 +1304,7 @@ function openSheet(html, cls = '') {
 }
 function closeSheet() {
   if (S.dirty) { S.dirty = false; setTimeout(() => render(false), 60); }
+  if ($('#sheet').classList.contains('frombar') && $('#sheet').classList.contains('show')) return morphClose();
 
   $('#sheet').classList.remove('show');
   $('#scrim').classList.remove('show');
@@ -1308,8 +1319,8 @@ function saveSheet() {
   const modes = !d.shared ? `<div class="modeseg"><span class="knob"></span>${['link', 'reminder', 'todo'].map((m) => `<button class="${d.mode === m ? 'on' : ''}" data-act="mode" data-m="${m}">${{ link: 'Link', reminder: 'Reminder', todo: 'To-do' }[m]}</button>`).join('')}</div>` : '';
   const top = d.mode === 'link'
     ? (d.title ? `<div class="preview"><img src="${d.img}" alt=""><div style="min-width:0"><div style="font-size:17px;line-height:1.25;font-weight:600">${esc(d.title)}</div><div class="meta" style="margin-top:3px">${esc(d.domain)}</div></div></div>`
-      : `<div class="field" style="margin-top:12px"><span style="color:var(--ink2)">${I.link}</span><input id="url" placeholder="Paste a link" aria-label="Link"></div><button class="chip press" style="margin-top:8px" data-act="paste">Paste an example link</button>`)
-    : `<div class="field" style="margin-top:12px;height:52px"><span class="nlwrap"><span class="mirror" id="tmirror"></span><input id="title" placeholder="${d.mode === 'todo' ? 'What needs doing? “pack bags friday 8pm”' : 'Remind me to… “call mom 9pm tomorrow”'}" value="${esc(d.title)}" aria-label="Title" autocomplete="off"></span><button class="mic press" data-act="sheet-mic" type="button" aria-label="Speak">${I.mic}</button></div><div id="tdetect" class="chips" style="margin-top:8px"></div>
+      : `<div class="field" style="margin-top:12px"><span style="color:var(--ink2)">${I.link}</span><input id="url" placeholder="${d.from === 'bar' ? 'Paste a link or type a reminder' : 'Paste a link'}" aria-label="Link"></div><button class="chip press" style="margin-top:8px" data-act="paste">Paste an example link</button>`)
+    : `<div class="field" style="margin-top:12px;height:52px"><span class="nlwrap"><span class="mirror" id="tmirror"></span><input id="title" placeholder="${d.mode === 'todo' ? 'What needs doing? “pack bags friday 8pm”' : 'Remind me to… “call mom 9pm tomorrow”'}" value="${esc(d.title)}" aria-label="Title" autocomplete="off"></span><button class="mic press" data-act="sheet-mic" type="button" aria-label="Speak">${I.mic}</button></div><div id="tdetect" class="chips" style="margin-top:8px"></div><div id="tsplit" class="tsplit"></div>
       <div class="chips" style="margin-top:8px"><label class="chip press" style="cursor:pointer">${I.photo}${d.img ? 'Change photo' : 'Add photo'}<input type="file" accept="image/*" id="dphoto" hidden></label></div>
       ${d.img ? `<div style="position:relative;margin-top:10px"><img src="${d.img}" alt="" style="width:100%;height:140px;object-fit:cover;border-radius:18px"><button class="circ press" data-act="d-photo-x" aria-label="Remove photo" style="position:absolute;right:8px;top:8px;width:34px;height:34px;background:rgba(0,0,0,.55);color:#fff">✕</button></div>` : ''}${d.mode === 'todo' ? `<div id="stepbox" style="margin-top:8px">${d.steps.map((s) => `<div class="step" style="padding:6px 4px"><span class="bx"></span><span class="tx" style="font-size:15px">${esc(s)}</span></div>`).join('')}</div><div class="field" style="margin-top:6px;min-height:44px"><span style="color:var(--ink2)">${I.plus}</span><input id="stepin" placeholder="Add a step, press Enter" aria-label="Add a step"></div>` : ''}`;
   const fchips = S.folders.map((f) => `<button class="chip press ${d.folder === f.name ? 'on' : ''}" data-act="dfolder" data-name="${esc(f.name)}">${f.shared ? I.users : ''}${esc(f.name)}</button>`).join('');
@@ -1346,6 +1357,12 @@ function bindSheetInputs() {
       const box = sh.querySelector('#tdetect');
       box.innerHTML = r.found ? detectChips(r).replace(/<span>/g, '<span class="chip on" style="height:30px;font-size:13px">') : '';
       const tl = sh.querySelector('.tiles'); if (tl) { tl.style.opacity = r.found ? .35 : 1; tl.style.pointerEvents = r.found ? 'none' : ''; }
+      const sp = splitTasks(t.value), lk = sp ? null : linkTarget(t.value); S.draft.sp = sp; S.draft.lk = lk;
+      const sb = sh.querySelector('#tsplit'), btn = sh.querySelector('[data-act="save"]');
+      if (!btn.dataset.lab) btn.dataset.lab = btn.textContent;
+      if (sb) sb.innerHTML = lk ? `<div class="sp-link"><img src="${lk.img}" alt=""><div><b>${esc(lk.title)}</b><span>${I.clock} comes back ${esc(r.found ? r.label : 'Today, 9:00 pm')}</span></div></div>` : sp ? splitPreview(sp, S.draft.smode || sp.def, 'd-smode') : '';
+      if (sp || lk) box.innerHTML = '';
+      btn.textContent = lk ? 'Set time' : sp ? ((S.draft.smode || sp.def) === 'list' ? 'Add list' : `Add ${sp.parts.length}`) : btn.dataset.lab;
     };
     t.addEventListener('input', upd); t.addEventListener('scroll', () => paintMirror(t, sh.querySelector('#tmirror'), S.draft.nl)); upd();
   }
@@ -1354,10 +1371,86 @@ function bindSheetInputs() {
   const n = sh.querySelector('#note'); if (n) n.addEventListener('input', (e) => (S.draft.note = e.target.value));
   const u = sh.querySelector('#url');
   if (u) u.addEventListener('keydown', (e) => { if (e.key === 'Enter' && u.value.trim()) fakeFetch(u.value.trim()); });
+  if (u) u.addEventListener('input', () => {
+    const v = u.value;
+    if (v.trim() && /\s/.test(v) && !/https?:\/\/|www\.|^[\w-]+\.(com|in|be|ly|io|co|org|net|app)\b/i.test(v.trim())) {
+      Object.assign(S.draft, { mode: 'reminder', title: v, folder: S.folder || '', when: 0 });
+      refreshSheet(); const ti = $('#title'); if (ti) { ti.focus(); ti.setSelectionRange(v.length, v.length); }
+    }
+  });
   if (u) u.addEventListener('paste', () => setTimeout(() => u.value.trim() && fakeFetch(u.value.trim()), 30));
   const s = sh.querySelector('#stepin');
   if (s) s.addEventListener('keydown', (e) => { if (e.key === 'Enter' && s.value.trim()) { S.draft.steps.push(s.value.trim()); refreshSheet(); $('#stepin').focus(); } });
 }
+// ------------------------------------------------------------------ Today bar → morphs into the save sheet
+function morphGeom(sh, bar) {
+  const b = bar.getBoundingClientRect(), r = sh.getBoundingClientRect();
+  const fEl = sh.querySelector('#url') ? sh.querySelector('#url').closest('.field') : null;
+  const f = fEl ? fEl.getBoundingClientRect() : r;
+  const tx = b.left - f.left, ty = b.top - f.top, sx = b.width / f.width, sy = b.height / f.height;
+  const clip = `inset(${f.top - r.top}px ${r.right - f.right}px ${r.bottom - f.bottom}px ${f.left - r.left}px round 20px)`;
+  const ox = f.left - r.left + f.width / 2, oy = f.top - r.top + f.height / 2;
+  return { fEl, from: { transformOrigin: `${ox}px ${oy}px`, transform: `translate(${tx}px,${ty}px) scale(${sx},${sy})`, clipPath: clip }, to: { transformOrigin: `${ox}px ${oy}px`, transform: 'none', clipPath: 'inset(0px 0px 0px 0px round 36px)' } };
+}
+function morphOpen(bar) {
+  if (!bar) return;
+  newDraft(false); Object.assign(S.draft, { folder: '', from: 'bar' });
+  openSheet(saveSheet(), 'frombar morphing'); bindSheetInputs();
+  const sh = $('#sheet'); sh.classList.add('show');
+  const u = sh.querySelector('#url'); if (u) u.focus({ preventScroll: true });
+  const g = morphGeom(sh, bar);
+  bar.style.opacity = '0';
+  sh.animate([g.from, g.to], { duration: 420, easing: 'cubic-bezier(.2,.85,.25,1)' });
+  sh.querySelectorAll('.grab, .modeseg, .field ~ *, h3, .chips, .tiles, .wmic, .save-row, .field:not(:has(#url))').forEach((el) => { if (el === g.fEl) return; el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, delay: 150, easing: 'ease-out', fill: 'backwards' }); });
+  requestAnimationFrame(() => sh.classList.remove('morphing'));
+  buzz(8);
+}
+function morphClose() {
+  const sh = $('#sheet'), bar = $('.view:not(.leaving) .savebar');
+  $('#scrim').classList.remove('show');
+  document.activeElement && document.activeElement.blur && document.activeElement.blur();
+  if (!bar || current() !== 'today' || S.draft?.mode !== 'link' || !sh.querySelector('#url')) { sh.classList.remove('show', 'frombar'); if (bar) bar.style.opacity = ''; return; }
+  const g = morphGeom(sh, bar);
+  sh.querySelectorAll('.grab, .modeseg, h3, .chips, .tiles, .wmic, .save-row').forEach((el) => el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: 'forwards' }));
+  const a = sh.animate([g.to, g.from], { duration: 320, easing: 'cubic-bezier(.4,0,.2,1)' });
+  a.onfinish = () => { bar.style.opacity = ''; sh.classList.add('morphing'); sh.classList.remove('show', 'frombar'); sh.getAnimations({ subtree: true }).forEach((x) => x.cancel()); requestAnimationFrame(() => requestAnimationFrame(() => sh.classList.remove('morphing'))); };
+}
+
+// ------------------------------------------------------------------ quiet hours, sound
+const hm = (v) => { const [h, m] = v.split(':').map(Number); const d = new Date(); d.setHours(h, m, 0, 0); return fmtTime(d); };
+const qLabel = () => `${hm(S.qFrom)} to ${hm(S.qTo)}${S.qDays === 'wk' ? ' · weekdays' : S.qDays === 'we' ? ' · weekends' : ''}`;
+function inQuiet() {
+  if (!S.quiet) return false;
+  const n = new Date(), day = n.getDay();
+  if (S.qDays === 'wk' && (day === 0 || day === 6)) return false;
+  if (S.qDays === 'we' && day > 0 && day < 6) return false;
+  const m = n.getHours() * 60 + n.getMinutes(), [a1, a2] = S.qFrom.split(':').map(Number), [b1, b2] = S.qTo.split(':').map(Number);
+  const f = a1 * 60 + a2, t = b1 * 60 + b2;
+  return f <= t ? m >= f && m < t : m >= f || m < t;
+}
+function quietSheet() {
+  const pre = [['22:00', '06:00'], ['23:00', '07:00'], ['00:00', '08:00']];
+  const html = `<p style="font-size:22px;font-weight:600;margin:0 4px 4px">Quiet hours</p>
+    <p class="sub" style="margin:0 4px 14px">No sound or buzz in this time. Reminders still arrive, silently, and wait in the bell list.</p>
+    <button class="set press" data-act="q-tog" style="background:var(--card);border-radius:18px;margin-bottom:12px"><span class="ic">${I.quiet}</span><span><span class="t" style="display:block">Quiet hours</span><span class="s">${S.quiet ? 'On' : 'Off'}</span></span><span class="tog ${S.quiet ? 'on' : ''}" style="margin-left:auto"></span></button>
+    <div class="qh" style="${S.quiet ? '' : 'opacity:.4;pointer-events:none'}">
+      <label><span>From</span><input type="time" id="qf" value="${S.qFrom}"></label>
+      <label><span>To</span><input type="time" id="qt" value="${S.qTo}"></label>
+    </div>
+    <h3>Quick picks</h3><div class="chips">${pre.map(([a, b]) => `<button class="chip press ${S.qFrom === a && S.qTo === b ? 'on' : ''}" data-act="q-preset" data-v="${a}-${b}">${hm(a)} – ${hm(b)}</button>`).join('')}</div>
+    <h3>Days</h3><div class="chips">${[['all', 'Every day'], ['wk', 'Weekdays'], ['we', 'Weekends']].map(([v, l]) => `<button class="chip press ${S.qDays === v ? 'on' : ''}" data-act="q-days" data-v="${v}">${l}</button>`).join('')}</div>
+    <div class="save-row"><button class="btn-ghost press" data-act="close-sheet">Cancel</button><button class="btn-blue press" data-act="q-save">Save</button></div>`;
+  if ($('#sheet').classList.contains('show') && $('#qf')) { const sh = $('#sheet'); sh.innerHTML = '<div class="grab" data-act="close-sheet"></div>' + html; } else openSheet(html);
+  ['qf', 'qt'].forEach((id) => { const el = $('#' + id); el && el.addEventListener('change', () => { if (id === 'qf') S.qFrom = el.value; else S.qTo = el.value; }); });
+}
+function toneSheet() {
+  const tones = [['Lil hello', 'A soft little hum'], ['Pop pop', 'Two quick pops'], ['Soft chime', 'A gentle bell']];
+  const html = `<p style="font-size:22px;font-weight:600;margin:0 4px 4px">Reminder sound</p><p class="sub" style="margin:0 4px 14px">Tap one to hear it. It plays 3 times when a reminder is due.</p>
+    <div class="card" style="margin:0">${tones.map(([n, d], i) => `<button class="set press" data-act="pick-tone" data-i="${i}"><span class="ic">${I.music}</span><span><span class="t" style="display:block">${n}</span><span class="s">${d}</span></span><span style="margin-left:auto;width:22px;height:22px;border-radius:50%;border:2px solid ${S.tone === i ? 'var(--blue)' : 'var(--ink3)'};display:grid;place-items:center">${S.tone === i ? '<i style="width:10px;height:10px;border-radius:50%;background:var(--blue)"></i>' : ''}</span></button>`).join('')}</div>
+    <div class="save-row"><button class="btn-blue press" data-act="close-sheet">Done</button></div>`;
+  if ($('#sheet').classList.contains('show') && $('[data-act="pick-tone"]')) $('#sheet').innerHTML = '<div class="grab" data-act="close-sheet"></div>' + html; else openSheet(html);
+}
+
 function openLinkSheet(u, rest) {
   newDraft(false); const d = S.draft;
   const url = u.startsWith('http') ? u : 'https://' + u;
@@ -1371,12 +1464,14 @@ function fakeFetch(url) {
   const d = S.draft;
   let host = 'link'; try { host = new URL(url.startsWith('http') ? url : 'https://' + url).hostname.replace(/^www\./, ''); } catch (e) {}
   d.url = url; d.domain = host;
-  d.title = /youtu/.test(host) ? 'Design systems talk' : 'Sourdough starter guide';
-  d.img = /youtu/.test(host) ? C('d6') : C('d11');
+  const g = /youtu/.test(host) ? ['Design systems talk', 'd6'] : /instagram/.test(host) ? ['One-pan lemon garlic chicken', 'd4'] : /pinterest/.test(host) ? ['Anniversary gift ideas', 'd2'] : ['Saved from ' + host, 'd11'];
+  d.title = g[0]; d.img = C(g[1]);
   refreshSheet();
 }
 function save() {
   const d = S.draft;
+  $('#sheet').classList.remove('frombar');
+  if (d.mode !== 'link' && (d.sp || d.lk) && !d.img) { const v = d.title, m = d.smode || (d.sp && d.sp.def); closeSheet(); setTimeout(() => addFromText(v, $('#micfab'), m), 120); return; }
   const w = WHEN[d.mode][d.when];
   const whenText = (d.mode === 'link' && d.when === 3) || (d.mode === 'todo' && d.when === 3) ? '' : (w[0] === 'Tonight' || w[0] === 'In 1 hour' || w[0] === 'Today' ? 'Today, ' : w[0] === 'Weekend' ? '' : w[0] === 'Pick' ? 'Mon, ' : 'Tomorrow, ') + (w[0] === 'Weekend' ? 'Sat, 10:00 am' : w[1].replace('Any day', '9:00 am'));
   const repeat = d.repeat.length === 7 ? 'Every day' : d.repeat.length === 5 && !d.repeat.includes(5) && !d.repeat.includes(6) && !d.pick ? 'Mon–Fri' : d.repeat.length ? d.repeat.map((i) => ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i]).join(', ') : '';
@@ -1450,8 +1545,18 @@ document.addEventListener('click', (e) => {
     case 'folder': { S.folder = t.dataset.name; S.folderTab = 'saved'; buzz(); const r = t.getBoundingClientRect(), sr = screen.getBoundingClientRect(); render(true); const v = $('.view:not(.leaving)'); v.style.transformOrigin = `${r.left - sr.left + r.width / 2}px ${r.top - sr.top + r.height / 2}px`; v.classList.add('zoom'); setTimeout(() => v.classList.remove('zoom'), 450); break; }
     case 'back': S.folder = null; buzz(); render(true); break;
     case 'ftab': S.folderTab = t.dataset.t; buzz(); { const c = $('#ftabs'); c.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === t)); knob(c, t); } swapFolderBody(); break;
-    case 'folder-more': openSheet(`<div class="card" style="margin:0"><button class="set press" data-act="toast-close" data-msg="Invite link copied"><span class="t">Invite friends</span></button><button class="set press" data-act="mute-group"><span class="t">${(S.folders.find((f) => f.name === S.folder) || {}).muted ? 'Unmute group' : 'Mute group'}</span></button>${(S.folders.find((f) => f.name === S.folder) || {}).shared ? '<button class="set press" data-act="group-push"><span class="t">Try a group reminder</span></button>' : ''}<button class="set press" data-act="toast-close" data-msg="Renamed"><span class="t">Rename</span></button></div>`); break;
+    case 'folder-more': openSheet(`<div class="card" style="margin:0"><button class="set press" data-act="invite"><span class="t">Invite friends</span></button><button class="set press" data-act="mute-group"><span class="t">${(S.folders.find((f) => f.name === S.folder) || {}).muted ? 'Unmute group' : 'Mute group'}</span></button>${(S.folders.find((f) => f.name === S.folder) || {}).shared ? '<button class="set press" data-act="group-push"><span class="t">Try a group reminder</span></button>' : ''}<button class="set press" data-act="rename-group"><span class="t">Rename</span></button></div>`); break;
     case 'toast-close': closeSheet(); toast(t.dataset.msg); break;
+    case 'bar-open': morphOpen(t.closest('.savebar')); break;
+    case 'd-smode': S.draft.smode = t.dataset.m; { const ti = $('#title'); ti && ti.dispatchEvent(new Event('input')); } break;
+    case 'quiet-edit': quietSheet(); break;
+    case 'q-preset': { const [a, b] = t.dataset.v.split('-'); S.qFrom = a; S.qTo = b; S.quiet = true; quietSheet(); break; }
+    case 'q-days': S.qDays = t.dataset.v; quietSheet(); break;
+    case 'q-tog': S.quiet = !S.quiet; quietSheet(); render(false); break;
+    case 'q-save': { const f = $('#qf'), g = $('#qt'); if (f && f.value) S.qFrom = f.value; if (g && g.value) S.qTo = g.value; S.quiet = true; closeSheet(); render(false); toast(`Quiet ${qLabel()}`); break; }
+    case 'pick-tone': S.tone = +t.dataset.i; chime(S.tone, true); toneSheet(); render(false); break;
+    case 'rename-group': renameSheet('group'); break;
+    case 'invite': { const link = 'https://littlelater.app/join/' + encodeURIComponent((S.folder || 'group').toLowerCase().replace(/\s+/g, '-')) + '-' + Math.random().toString(36).slice(2, 7); try { navigator.clipboard && navigator.clipboard.writeText(link); } catch (e) {} closeSheet(); toast('Invite link copied. Paste it in WhatsApp'); break; }
     case 'new': newDraft(false); if (S.folder) S.draft.folder = S.folder; openSheet(saveSheet()); bindSheetInputs(); break;
     case 'mode': S.draft.mode = t.dataset.m; S.draft.when = t.dataset.m === 'link' ? 0 : 0; if (t.dataset.m !== 'link') { S.draft.title = ''; S.draft.folder = S.folder || ''; } else S.draft.folder = S.folder || 'Hobby'; S.draft.repeat = []; S.draft.pick = false; buzz(); refreshSheet(); break;
     case 'paste': fakeFetch('https://youtube.com/watch?v=design'); break;
@@ -1476,7 +1581,7 @@ document.addEventListener('click', (e) => {
     case 'theme': S.theme = S.theme === 'dark' ? 'light' : 'dark'; document.documentElement.dataset.theme = S.theme; buzz(); render(false); break;
     case 'vibe': S.vibe = !S.vibe; render(false); if (S.vibe) buzz([600, 120, 600, 120, 500]); break;
     case 'quiet': S.quiet = !S.quiet; render(false); break;
-    case 'tone': S.tone = (S.tone + 1) % 3; render(false); chime(S.tone); break;
+    case 'tone': toneSheet(); break;
     case 'lil-corner': openLil(); break;
     case 'lil-open': if (e.target.closest('.lc-pen')) { renameSheet('lil'); break; } openLil(); break;
     case 'lil-close': closeLil(); break;
@@ -1494,7 +1599,7 @@ document.addEventListener('click', (e) => {
     case 'streak-ok': closeStreak(); break;
     case 'streak-lil': closeStreak(); openLil(); break;
     case 'lil-corner-old': openSheet(`<div style="display:flex;flex-direction:column;align-items:center;padding:10px 0 4px">${lil('idle', 120, 'corner')}<p style="font-size:22px;font-weight:600;margin-top:10px">Lil’s corner</p><p class="sub" style="text-align:center">Level 4 · 340 stars. Outfits, levels and the shop live here, out of the way.</p></div><div class="save-row"><button class="btn-blue press" data-act="close-sheet">Nice</button></div>`); break;
-    case 'chrome': toast('Opens the website’s Chrome page'); break;
+    case 'chrome': window.open('https://harsh-alt-max.github.io/Little-Later-App/', '_blank'); break;
     case 'new-folder': S.nf = { name: '', color: 0, icon: 0, shared: false }; openSheet(folderSheet()); bindFolderSheet(); setTimeout(() => $('#fname')?.focus(), 350); break;
     case 'make-folder': { const n = (S.nf.name || '').trim() || 'New folder'; S.folders.push({ name: n, base: 0, color: FCOLORS[S.nf.color], icon: S.nf.icon, shared: S.nf.shared }); closeSheet(); render(false); toast(S.nf.shared ? `“${n}” is ready · invite link copied` : `“${n}” is ready`); break; }
     case 'move': { const it = byId(id); openSheet(`<p style="font-size:17px;font-weight:600;margin:0 6px 10px">Move to</p><div class="card" style="margin:0">${it.kind !== 'link' && it.folder ? `<button class="set press" data-act="moveto" data-id="${id}" data-name=""><span class="t">No folder</span></button>` : ''}${S.folders.map((f) => `<button class="set press" data-act="moveto" data-id="${id}" data-name="${esc(f.name)}"><span class="t">${esc(f.name)}</span>${f.name === it.folder ? '<span class="meta" style="margin-left:auto">Current</span>' : ''}</button>`).join('')}</div>`); break; }
@@ -1793,6 +1898,7 @@ function refreshFolderSheet() { const sh = $('#sheet'); const st = sh.scrollTop;
 
 // ------------------------------------------------------------------ Today save bar: paste a link or type a reminder
 function wireSavebar() {
+  { const ph = $('.view:not(.leaving) #sphoto'); if (ph) ph.addEventListener('change', () => { const f = ph.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => { newDraft(false); S.draft.mode = 'reminder'; S.draft.folder = ''; S.draft.img = rd.result; openSheet(saveSheet()); bindSheetInputs(); }; rd.readAsDataURL(f); }); }
   const inp = $('.view:not(.leaving) #sin'); if (!inp) return;
   const go = $('.view:not(.leaving) #sgo'), mir = $('.view:not(.leaving) #smirror'), det = $('.view:not(.leaving) #sdetect');
   const upd = () => {
@@ -2132,17 +2238,18 @@ function pickOutfit(i, el) {
   L.outfit = i; buzz([10, 30, 10]); persist(); renderLil(true);
 }
 function renameSheet(who) {
-  const v = who === 'lil' ? S.lil.name : S.me.name;
-  openSheet(`<p style="font-size:22px;font-weight:600;margin:0 4px 6px">${who === 'lil' ? 'Name your buddy' : 'What should we call you?'}</p>
-    <p class="sub" style="margin:0 4px 14px">${who === 'lil' ? 'This name shows across the app and on your reminders.' : 'Used in your greeting and in shared folders.'}</p>
+  const v = who === 'lil' ? S.lil.name : who === 'group' ? S.folder : S.me.name;
+  openSheet(`<p style="font-size:22px;font-weight:600;margin:0 4px 6px">${who === 'lil' ? 'Name your buddy' : who === 'group' ? 'Rename folder' : 'What should we call you?'}</p>
+    <p class="sub" style="margin:0 4px 14px">${who === 'lil' ? 'This name shows across the app and on your reminders.' : who === 'group' ? 'Everyone in it sees the new name.' : 'Used in your greeting and in shared folders.'}</p>
     ${who === 'lil' ? `<div style="display:grid;place-items:center;margin-bottom:10px">${lil('happy', 96)}</div>` : ''}
-    <div class="field"><input id="nmIn" maxlength="14" value="${esc(v)}" aria-label="Name" autocomplete="off" style="flex:1;border:0;outline:0;background:none;font-size:17px;height:50px"></div>
+    <div class="field"><input id="nmIn" maxlength="${who === 'group' ? 24 : 14}" value="${esc(v)}" aria-label="Name" autocomplete="off" style="flex:1;border:0;outline:0;background:none;font-size:17px;height:50px"></div>
     <div class="save-row"><button class="btn-ghost press" data-act="close-sheet">Cancel</button><button class="btn-blue press" data-act="save-name" data-who="${who}">Save</button></div>`);
   setTimeout(() => { const i = $('#nmIn'); if (i) { i.focus(); i.select(); i.addEventListener('keydown', (e) => { if (e.key === 'Enter') $('[data-act="save-name"]').click(); }); } }, 320);
 }
 function saveName(who) {
   const v = ($('#nmIn')?.value || '').trim(); if (!v) return toast('Give it a name first');
-  if (who === 'lil') { S.lil.name = v; toast(`Say hi to ${v}!`); } else { S.me.name = v; toast(`Hi ${v}!`); }
+  if (who === 'group') { const f = S.folders.find((x) => x.name === S.folder); if (f && v !== f.name) { if (S.folders.some((x) => x.name === v)) return toast('A folder with that name exists'); S.items.forEach((i) => { if (i.folder === f.name) i.folder = v; }); f.name = v; S.folder = v; } toast('Renamed'); }
+  else if (who === 'lil') { S.lil.name = v; toast(`Say hi to ${v}!`); } else { S.me.name = v; toast(`Hi ${v}!`); }
   closeSheet(); persist(); if ($('#lilv').classList.contains('show')) renderLil(true); render(false);
 }
 
@@ -2164,7 +2271,7 @@ function pushNotif(it, grp) {
     <div class="pu-acts"><button class="press" data-act="push-done" data-id="${it.id}">Done</button><button class="press" data-act="push-later" data-id="${it.id}">Tomorrow</button></div>`;
   p.classList.remove('show'); void p.offsetWidth; p.classList.add('show');
   note(grp ? `${it.by || 'Aman'} in ${grp.name}: “${it.title}”` : `“${it.title}” is due now`, grp ? 'folder' : 'bell', it.id);
-  chime(S.tone, true); buzz(S.vibe ? [200, 80, 200, 80, 400] : 20);
+  if (inQuiet()) { toast('Arrived silently · quiet hours'); } else { chime(S.tone, true); buzz(S.vibe ? [200, 80, 200, 80, 400] : 20); }
   clearTimeout(PT); PT = setTimeout(() => p.classList.remove('show'), 9000);
   render(false);
 }
