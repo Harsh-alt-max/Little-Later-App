@@ -524,6 +524,108 @@ h1.page.in{animation:titleIn .8s var(--ease) both;animation-delay:calc(var(--i,0
 [data-dir=daylight] .ftile .glow{top:-25%;left:-25%;width:150%;height:150%}
 [data-dir=daylight] .ftile .veil{background:linear-gradient(180deg,rgba(255,255,255,0) 35%,rgba(255,255,255,.4) 68%,rgba(255,255,255,.75) 100%)}
 
+/* ===== v7: Lil, streak, notifications ===== */
+.ndot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ember);flex:none}
+.flamepill{transition:transform .3s var(--spring)}
+/* voice with Lil listening */
+.vlil{display:grid;place-items:center;height:128px;margin-top:-4px}
+.vlil .lil-listen .earL,.vlil .lil-listen .earR{transform-box:fill-box;transform-origin:50% 100%;animation:earPerk 1.4s ease-in-out infinite}
+.vlil .lil-listen .earR{animation-delay:.18s}
+.vlil.hear .lil-listen .earL,.vlil.hear .lil-listen .earR{animation:earHear .45s var(--spring)}
+@keyframes earPerk{0%,100%{transform:scale(1) rotate(0)}50%{transform:scale(1.06,1.1) rotate(-3deg)}}
+@keyframes earHear{0%{transform:scale(1)}45%{transform:scale(1.16,1.24)}100%{transform:scale(1)}}
+.vlil .snd path{opacity:0;animation:snd 1.6s ease-out infinite}
+.vlil .snd .s2{animation-delay:.35s}
+@keyframes snd{0%{opacity:0}30%{opacity:.85}100%{opacity:0}}
+.vlil.got svg{animation:pop .5s var(--spring)}
+@keyframes pop{0%{transform:scale(.85)}60%{transform:scale(1.08)}100%{transform:scale(1)}}
+.vstat{text-align:center;font-size:13px;color:var(--ink2);margin-top:12px}
+.voice.ready #vadd{animation-duration:7s}
+/* Lil's corner */
+.lilv{position:absolute;inset:0;z-index:19;background:var(--bg);overflow-y:auto;scrollbar-width:none;padding:0 16px;opacity:0;pointer-events:none;transform:scale(.97);filter:blur(6px);transition:opacity .35s var(--ease),transform .4s var(--ease),filter .35s}
+.lilv.show{opacity:1;pointer-events:auto;transform:none;filter:none}
+.lv-top{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;padding:52px 2px 8px;background:linear-gradient(var(--bg) 70%,transparent)}
+.lv-top .circ{width:40px;height:40px}
+.lv-hero{display:flex;flex-direction:column;align-items:center}
+.lv-stage{height:220px;width:100%;display:flex;align-items:flex-end;justify-content:center;position:relative;cursor:pointer}
+.lv-stage::after{content:'';position:absolute;bottom:4px;width:140px;height:18px;border-radius:50%;background:var(--chipbg);filter:blur(2px);z-index:-1}
+.lv-stage.bounce svg{animation:hop .6s var(--spring)}
+@keyframes hop{0%{transform:translateY(0) scale(1)}30%{transform:translateY(-18px) scale(.96,1.05)}60%{transform:translateY(0) scale(1.05,.95)}100%{transform:none}}
+.lv-name{display:flex;align-items:center;gap:8px;margin-top:10px}
+.lv-name h1{font-size:28px;font-weight:600;letter-spacing:-.02em}
+.lv-card{background:var(--card);border-radius:26px;padding:18px;margin-top:12px}
+.lv-h{font-size:13px;font-weight:600;color:var(--ink2);margin:24px 6px 0}
+.lv-row{display:flex;justify-content:space-between;align-items:center}
+.lv-big{display:flex;align-items:center;gap:10px}
+.lv-big b{display:block;font-size:34px;font-weight:600;letter-spacing:-.03em;line-height:1}
+.lv-big span{font-size:13px;color:var(--ink2)}
+.chip2{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:99px;background:var(--chipbg);font-size:13px;font-weight:500}
+.week7{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:16px}
+.wd{display:flex;flex-direction:column;align-items:center;gap:4px}
+.wd small{font-size:11px;color:var(--ink3);font-weight:500}
+.wd.now small{color:var(--ink);font-weight:600}
+.wd.now svg{animation:pop .6s var(--spring) .3s both}
+.lv-hint{font-size:13px;line-height:1.45;color:var(--ink2);margin-top:14px}
+.miles{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.mile{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 2px 10px;border-radius:18px;background:var(--chipbg);opacity:.5}
+.mile b{font-size:11px;font-weight:600;white-space:nowrap}
+.mile small{font-size:11px;color:var(--ink2)}
+.mile.got{opacity:1}
+.mile.got svg{filter:saturate(.3);opacity:.6}
+.mile.rdy{opacity:1;background:var(--blue-soft);outline:1.5px solid var(--blue);outline-offset:-1.5px;animation:glow 1.6s ease-in-out infinite}
+.mile.rdy b{color:var(--blue-ink)}
+@keyframes glow{50%{transform:scale(1.05)}}
+.ladder{display:flex;justify-content:space-between;align-items:flex-end;height:96px}
+.rung{display:flex;flex-direction:column;align-items:center;gap:4px}
+.rung small{font-size:11px;color:var(--ink2);font-weight:500}
+.rung.on small{color:var(--ink);font-weight:600}
+.rung.off svg{opacity:.28;filter:grayscale(1)}
+.bar2{height:8px;border-radius:99px;background:var(--chipbg);margin-top:14px;overflow:hidden}
+.bar2 i{display:block;height:100%;border-radius:99px;background:var(--blue);transition:width .8s var(--ease)}
+.ogrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.otile{background:var(--card);border-radius:24px;padding:12px 12px 14px;display:flex;flex-direction:column;align-items:center;gap:2px;outline:1.5px solid transparent;outline-offset:-1.5px;transition:outline-color .2s}
+.otile.on{outline-color:var(--blue)}
+.otile .ostage{height:96px;display:grid;place-items:end center}
+.otile b{font-size:15px;font-weight:600;margin-top:6px}
+.otile small{font-size:13px;color:var(--ink2);display:inline-flex;align-items:center;gap:4px}
+.otile.on small{color:var(--blue-ink);font-weight:500}
+.otile.nope{animation:nope .4s}
+@keyframes nope{20%,60%{transform:translateX(-5px)}40%,80%{transform:translateX(5px)}}
+/* profile buddy card */
+.lilcard{display:flex;align-items:center;gap:14px;width:calc(100% - 32px);margin:18px 16px 0;background:var(--card);border-radius:26px;padding:12px 16px 12px 10px;text-align:left;position:relative}
+.lc-stage{width:92px;height:92px;flex:none;display:grid;place-items:center}
+.lc-txt{display:flex;flex-direction:column;gap:3px;min-width:0}
+.lc-n{font-size:22px;font-weight:600;letter-spacing:-.02em;display:flex;align-items:center;gap:6px}
+.lc-pen{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--chipbg)}
+.lc-s{font-size:13px;color:var(--ink2)}
+.lc-chips{display:flex;gap:6px;margin-top:6px}
+.lc-chips span{display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 9px;border-radius:99px;background:var(--chipbg);font-size:13px;font-weight:500}
+.lc-new{position:absolute;top:12px;right:12px;font-size:11px;font-weight:600;color:#17130F;background:var(--blue);padding:4px 9px;border-radius:99px}
+/* streak moment */
+.streakv{position:absolute;inset:0;z-index:30;display:grid;place-items:center;padding:20px;background:rgba(0,0,0,.45);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);opacity:0;pointer-events:none;transition:opacity .3s}
+.streakv.show{opacity:1;pointer-events:auto}
+.sm-card{width:100%;background:var(--sheet);border-radius:34px;padding:22px 18px 18px;display:flex;flex-direction:column;align-items:center;transform:translateY(30px) scale(.96);transition:transform .45s var(--spring)}
+.streakv.show .sm-card{transform:none}
+.sm-flame{display:flex;align-items:center;gap:4px;margin-top:4px}
+.sm-flame b{font-size:44px;font-weight:600;letter-spacing:-.03em;line-height:1;display:inline-block}
+.sm-flame b.tick{animation:pop .5s var(--spring)}
+.streakv.show .sm-flame svg{animation:flameIn .7s var(--spring) .15s both}
+@keyframes flameIn{0%{transform:scale(.4);opacity:0}100%{transform:none;opacity:1}}
+.sm-t{font-size:22px;font-weight:600;letter-spacing:-.02em;margin-top:8px}
+.sm-s{font-size:15px;color:var(--ink2);text-align:center;margin-top:4px}
+.sm-x{display:inline-flex;align-items:center;gap:6px;margin-top:14px;height:34px;padding:0 14px;border-radius:99px;background:var(--chipbg);font-size:13px;font-weight:500}
+/* push notification */
+.push{position:absolute;left:10px;right:10px;top:10px;z-index:40;background:var(--sheet);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-radius:26px;padding:12px 14px;transform:translateY(-130%);transition:transform .45s var(--spring);outline:1px solid var(--line);outline-offset:-1px}
+.push.show{transform:none}
+.pu-head{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:600;color:var(--ink2);text-transform:uppercase;letter-spacing:.06em}
+.pu-head svg{border-radius:6px}
+.pu-body{display:flex;flex-direction:column;gap:2px;margin-top:8px;cursor:pointer}
+.pu-body b{font-size:15px;font-weight:600}
+.pu-body span{font-size:13px;color:var(--ink2)}
+.pu-acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.pu-acts button{height:36px;border-radius:12px;background:var(--chipbg);font-size:13px;font-weight:600}
+.nrow.unread{background:var(--chipbg)}
+
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
@@ -539,11 +641,11 @@ h1.page.in{animation:titleIn .8s var(--ease) both;animation-delay:calc(var(--i,0
     <div class="looks" id="looks"><button class="lookbtn press" data-act="look" data-look="midnight"><i style="background:radial-gradient(circle at 50% 30%,#FF9F7E,#0A0A0C 70%)"></i>Midnight</button><button class="lookbtn press" data-act="look" data-look="daylight"><i style="background:radial-gradient(circle at 50% 20%,#FFD2C0,#F6F4F1 70%)"></i>Daylight</button></div>
     <ol>
       <li><span><b>Type or paste</b> in the bar on Today: “call mom 9pm tomorrow” or any link. The time lights up as you type.</span></li>
-      <li><span>Tap the <b>mic</b> above the + and just say it. It adds itself.</span></li>
+      <li><span>Tap the <b>mic</b> above the + and just say it. Lil listens, then adds it.</span></li>
+      <li><span>Tap the <b>flame</b> for your streak, hearts, outfits and Lil’s name.</span></li>
       <li><span>Tap <b>Done</b> on the big card, or the clock for <b>Later</b> (same time tomorrow).</span></li>
       <li><span>Tap any reminder for its <b>details</b>: Done, Edit, Share, Delete.</span></li>
       <li><span><b>Saved</b> filters: Links, To-dos, Images. <b>New folder</b>: pick a colour and an icon.</span></li>
-      <li><span>Pull down and hold anywhere. Lil peeks and blinks.</span></li>
     </ol>
     <button class="btn-share press" data-act="brand" style="margin-right:8px;background:rgba(255,255,255,.1);color:#fff">Brand &amp; logo</button>
     <button class="btn-share press" data-act="share-demo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>Try saving from Instagram</button>
@@ -564,6 +666,9 @@ h1.page.in{animation:titleIn .8s var(--ease) both;animation-delay:calc(var(--i,0
     <div class="scrim" id="scrim" data-act="close-sheet"></div>
     <div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
     <div class="donev" id="donev"></div>
+    <div class="lilv" id="lilv" role="dialog" aria-label="Your buddy"></div>
+    <div class="streakv" id="streakv" role="dialog" aria-label="Streak"></div>
+    <div class="push" id="push" role="status"></div>
     <div class="share" id="share">
       <div class="reel"></div>
       <div class="reel-ui"><i></i>chef.anya · Reels</div>
@@ -615,10 +720,13 @@ const I = {
 
 // Lil, the new mascot. mood: idle | happy | curious
 let LILN = 0;
-function lil(mood = 'idle', size = 150, cls = '') {
+function lil(mood = 'idle', size = 150, cls = '', outfit) {
+  if (outfit === undefined) outfit = (typeof S !== 'undefined' && S.lil) ? S.lil.outfit : 0;
   const id = 'lg' + (++LILN);
   const ear = 'style="fill:var(--lilEar)"';
-  const ears = mood === 'happy'
+  const ears = mood === 'listen'
+    ? `<g class="earL"><ellipse cx="50" cy="40" rx="23" ry="36" transform="rotate(-34 50 40)" ${ear}/></g><g class="earR"><ellipse cx="150" cy="40" rx="23" ry="36" transform="rotate(34 150 40)" ${ear}/></g><g class="snd" fill="none" style="stroke:var(--blue)" stroke-width="5" stroke-linecap="round"><path class="s1" d="M16 34 q-9 15 0 30"/><path class="s2" d="M4 24 q-15 25 0 50"/><path class="s1" d="M184 34 q9 15 0 30"/><path class="s2" d="M196 24 q15 25 0 50"/></g>`
+    : mood === 'happy'
     ? `<ellipse cx="58" cy="46" rx="17" ry="24" transform="rotate(-30 58 46)" ${ear}/><ellipse cx="142" cy="46" rx="17" ry="24" transform="rotate(30 142 46)" ${ear}/>`
     : mood === 'sleepy'
     ? `<ellipse cx="56" cy="58" rx="17" ry="24" transform="rotate(-50 56 58)" ${ear}/><ellipse cx="144" cy="58" rx="17" ry="24" transform="rotate(50 144 58)" ${ear}/>`
@@ -628,7 +736,7 @@ function lil(mood = 'idle', size = 150, cls = '') {
     : mood === 'sleepy'
     ? '<path d="M58 112 q18 14 36 0" fill="none" stroke="#0B0E22" stroke-width="8" stroke-linecap="round"/><path d="M106 112 q18 14 36 0" fill="none" stroke="#0B0E22" stroke-width="8" stroke-linecap="round"/>'
     : '<g class="eyes"><ellipse cx="76" cy="108" rx="21" ry="27" fill="#0B0E22"/><ellipse cx="76" cy="123" rx="14" ry="11" style="fill:var(--lilA)"/><circle cx="69" cy="97" r="6.5" fill="#fff"/><circle cx="83" cy="112" r="2.4" fill="#fff"/><ellipse cx="124" cy="108" rx="21" ry="27" fill="#0B0E22"/><ellipse cx="124" cy="123" rx="14" ry="11" style="fill:var(--lilA)"/><circle cx="117" cy="97" r="6.5" fill="#fff"/><circle cx="131" cy="112" r="2.4" fill="#fff"/></g>';
-  return `<svg class="${cls}" width="${size}" height="${size}" viewBox="0 0 200 200" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--lilA)"/><stop offset="1" style="stop-color:var(--lilB)"/></linearGradient><radialGradient id="${id}h" cx=".35" cy=".2" r=".5"><stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>${ears}<rect x="28" y="40" width="144" height="146" rx="64" fill="url(#${id})"/><rect x="28" y="40" width="144" height="146" rx="64" fill="url(#${id}h)"/>${eyes}</svg>`;
+  return `<svg class="${cls} lil-${mood}" width="${size}" height="${size}" viewBox="-6 -6 212 212" style="overflow:visible" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--lilA)"/><stop offset="1" style="stop-color:var(--lilB)"/></linearGradient><radialGradient id="${id}h" cx=".35" cy=".2" r=".5"><stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>${ears}<rect x="28" y="40" width="144" height="146" rx="64" fill="url(#${id})"/><rect x="28" y="40" width="144" height="146" rx="64" fill="url(#${id}h)"/>${eyes}${outfitSvg(outfit)}</svg>`;
 }
 
 // Logo marks. 0 Peek · 1 Saved (bookmark) · 2 Wink
@@ -684,10 +792,17 @@ const S = {
     { who: 'You', me: true, t: 'Perfect. I’ll bring the speaker' },
   ],
   draft: null,
+  me: { name: 'Harsh', email: 'harsh@example.com' },
+  lil: { name: 'Lil', xp: 240, hearts: 5, freezes: 2, collected: [3, 5], outfit: 0, owned: [0], last: '' },
+  notes: [
+    { t: '“Anniversary gift ideas” is due at 6:30 pm', ic: 'bell', ago: '5 min ago', unread: true },
+    { t: 'Riya added 2 saves to Goa trip', ic: 'folder', ago: '1 h ago', unread: true },
+    { t: 'Lil grew to Growing size', ic: 'spark', ago: 'Yesterday' },
+  ],
 };
 let nextId = 100;
 // keep your changes between visits (this browser only)
-const STORE = 'littlelater-preview-v1', KEEP = ['items', 'folders', 'chat', 'view', 'dir', 'tone', 'vibe', 'quiet', 'streak', 'doneToday', 'logo', 'word'];
+const STORE = 'littlelater-preview-v1', KEEP = ['me', 'lil', 'notes', 'items', 'folders', 'chat', 'view', 'dir', 'tone', 'vibe', 'quiet', 'streak', 'doneToday', 'logo', 'word'];
 try {
   if (/[?&]reset/.test(location.search)) localStorage.removeItem(STORE);
   const saved = JSON.parse(localStorage.getItem(STORE) || 'null');
@@ -733,8 +848,8 @@ function today() {
   if (tds) parts.push(`<b><span class="num">${tds}</span> ${tds === 1 ? 'to-do' : 'to-dos'}</b>`);
   const joined = parts.length > 1 ? parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1] : parts[0];
   const sentence = q.length
-    ? `Good evening, Harsh. <b><span class="num">${q.length}</span> ${q.length === 1 ? 'thing is' : 'things are'}</b> waiting: ${joined}. You’re free after <b>6 pm</b>.`
-    : `All clear, Harsh. <b>Nothing</b> is waiting. Enjoy the evening.`;
+    ? `Good evening, ${esc(S.me.name)}. <b><span class="num">${q.length}</span> ${q.length === 1 ? 'thing is' : 'things are'}</b> waiting: ${joined}. You’re free after <b>6 pm</b>.`
+    : `All clear, ${esc(S.me.name)}. <b>Nothing</b> is waiting. Enjoy the evening.`;
   const W = ['M', 'T', 'W', 'T', 'F', 'S', 'S'], N = [16, 17, 18, 19, 20, 21, 22], busy = [1, 0, 1, 1, 0, 1, 1];
   const week = W.map((w, i) => `<button class="day press ${i < 5 ? 'past' : ''} ${S.day === i ? 'on' : ''}" data-act="day" data-i="${i}" aria-label="${w} ${N[i]}"><small>${w}</small><span>${N[i]}</span><i class="${busy[i] ? 'dot' : ''}"></i></button>`).join('');
   let stack = '<p class="empty in" style="--i:3">Nothing left for today. Lil is proud of you.</p>';
@@ -765,7 +880,7 @@ function today() {
   S.promote = false;
   const tomorrow = S.items.filter((i) => !i.today && !i.done && /Tomorrow/.test(i.when));
   const list = tomorrow.length ? `<div class="later-list in" style="--i:5;margin-top:8px">${tomorrow.map((x) => row(x)).join('')}</div>` : '';
-  return `<div class="top in" style="--i:0"><span class="logo"><button class="press" data-act="brand" aria-label="Brand and logo" style="border-radius:10px;overflow:hidden;display:grid">${mark(S.logo, 34)}</button><span class="date">Sat, 21 Nov</span></span><div style="display:flex;gap:8px;align-items:center"><span class="pill">${I.flame}${S.streak}</span><button class="avatar press" data-tab="profile" aria-label="Profile">H</button></div></div>
+  return `<div class="top in" style="--i:0"><span class="logo"><span style="border-radius:10px;overflow:hidden;display:grid">${mark(S.logo, 34)}</span><span class="date">Sat, 21 Nov</span></span><div style="display:flex;gap:8px;align-items:center"><button class="pill press flamepill" data-act="lil-open" aria-label="${S.streak} day streak">${I.flame}${S.streak}</button><button class="pill press" data-act="notes" aria-label="Notifications" style="width:34px;padding:0;justify-content:center;position:relative">${I.bell}${S.notes.some((n) => n.unread) ? '<i class="ndot" style="position:absolute;top:6px;right:7px"></i>' : ''}</button><button class="avatar press" data-tab="profile" aria-label="Profile">${esc(S.me.name[0] || 'H').toUpperCase()}</button></div></div>
     <p class="sentence in" style="--i:1">${sentence}</p>
     <form class="savebar in" style="--i:2" id="savebar" onsubmit="return false">
       <span class="nlwrap"><span class="mirror" id="smirror"></span><input id="sin" placeholder="Paste a link or type a reminder" autocomplete="off" aria-label="Paste a link or type a reminder"></span>
@@ -878,20 +993,30 @@ function profile() {
   const set = (ic, t, s, right, act) => `<button class="set press" ${act ? `data-act="${act}"` : ''}><span class="ic">${ic}</span><span><span class="t" style="display:block">${t}</span>${s ? `<span class="s">${s}</span>` : ''}</span>${right || ''}</button>`;
   const tog = (on, act) => `<span class="tog ${on ? 'on' : ''}" data-act="${act}"></span>`;
   const tones = ['Lil hello', 'Pop pop', 'Soft chime'];
-  return `<div class="top in" style="--i:0;padding-top:60px"><h1 class="page">Harsh</h1><span class="avatar" style="width:44px;height:44px;font-size:17px">H</span></div>
-    <p class="sub in" style="--i:0;margin:6px 22px 0">harsh@example.com</p>
-    <div class="stats in" style="--i:1"><div class="stat"><b>${S.streak}</b><span>day streak</span></div><div class="stat"><b>${42 + S.doneToday}</b><span>done this month</span></div><div class="stat"><b>4</b><span>level</span></div></div>
-    <div class="card in" style="--i:2">
+  const lv = lvlOf(S.lil.xp), hr = heartsReady();
+  return `<div class="top in" style="--i:0;padding-top:60px"><div style="display:flex;align-items:center;gap:8px;min-width:0"><h1 class="page" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(S.me.name)}</h1><button class="circ press" data-act="rename-me" aria-label="Edit your name" style="width:34px;height:34px;flex:none">${II.pen}</button></div><span class="avatar" style="width:44px;height:44px;font-size:17px">${esc(S.me.name[0] || 'H').toUpperCase()}</span></div>
+    <p class="sub in" style="--i:0;margin:6px 22px 0">${esc(S.me.email)}</p>
+    <button class="lilcard press in" style="--i:1" data-act="lil-open">
+      <span class="lc-stage">${lil('idle', 92)}</span>
+      <span class="lc-txt"><span class="lc-n">${esc(S.lil.name)}<span class="lc-pen" data-act="rename-lil" aria-label="Rename buddy">${II.pen}</span></span><span class="lc-s">${LEVELS[lv][0]} size · ${OUTFITS[S.lil.outfit][0]}</span>
+      <span class="lc-chips"><span>${I.flame}${S.streak}</span><span>${II.heart(13)}${S.lil.hearts}</span><span>${II.snow}${S.lil.freezes}</span></span></span>
+      ${hr ? '<span class="lc-new">Hearts ready</span>' : ''}
+    </button>
+    <div class="stats in" style="--i:2"><div class="stat"><b>${S.streak}</b><span>day streak</span></div><div class="stat"><b>${42 + S.doneToday}</b><span>done this month</span></div><div class="stat"><b>${lv + 1}</b><span>level</span></div></div>
+    <div class="card in" style="--i:3">
       ${set(I.moon, 'Light mode', 'Daylight look. Off = Midnight', tog(S.dir === 'daylight', 'next-look'), 'next-look')}
       ${set(I.music, 'Reminder sound', tones[S.tone] + ' · plays 3 times', '<span class="meta" style="margin-left:auto">Change</span>', 'tone')}
       ${set(I.vibe, 'Strong vibration', 'A 2 second buzz', tog(S.vibe, 'vibe'), 'vibe')}
       ${set(I.quiet, 'Quiet hours', '11 pm to 7 am', tog(S.quiet, 'quiet'), 'quiet')}
+      ${set(I.bell, 'Try a notification', 'See how a reminder arrives', '<span class="meta" style="margin-left:auto">Send</span>', 'test-notif')}
     </div>
-    <div class="card in" style="--i:3">
-      ${set(I.star, 'Lil’s corner', 'Stars, outfits and levels live here now', '<span class="meta" style="margin-left:auto">Open</span>', 'lil-corner')}
+    <div class="card in" style="--i:4">
       ${set(I.chrome, 'Chrome extension', 'Save from your laptop', '<span class="meta" style="margin-left:auto">Get it</span>', 'chrome')}
+      ${set(I.link, 'Save from other apps', 'Share from Instagram, YouTube…', '<span class="meta" style="margin-left:auto">Try</span>', 'share-demo')}
     </div>
-    <div class="card in" style="--i:4">${set(I.trash, 'Reset preview', 'Start over with the sample data', '<span class="meta" style="margin-left:auto">Reset</span>', 'reset-demo')}${set(I.star, 'Brand & logo', 'Logo marks, wordmarks, the new Lil', '<span class="meta" style="margin-left:auto">Open</span>', 'brand')}${set(I.link, 'Demo: save from Instagram', 'See the share card and glowing edges', '<span class="meta" style="margin-left:auto">Try</span>', 'share-demo')}</div>`;
+    <p class="meta in" style="--i:5;margin:26px 22px 8px">This preview</p>
+    <div class="card in" style="--i:5">${set(I.star, 'Brand & logo', 'Marks, wordmarks, type', '<span class="meta" style="margin-left:auto">Open</span>', 'brand')}${set(I.trash, 'Reset preview', 'Start over with the sample data', '<span class="meta" style="margin-left:auto">Reset</span>', 'reset-demo')}</div>
+    <div style="height:30px"></div>`;
 }
 
 // ------------------------------------------------------------------ looks
@@ -1007,7 +1132,7 @@ function swipe(card) {
 
 function markDone(id) {
   const it = byId(id); if (!it) return;
-  it.done = true; S.doneToday++; buzz(14);
+  it.done = true; S.doneToday++; buzz(14); gainXP(15);
   const left = queue().length;
   if (!left && S.tab === 'today' && !S.folder) { S.promote = true; render(false); showDone(); return; }
   S.promote = true; render(false);
@@ -1076,7 +1201,6 @@ function pull(v) {
     active = false; clearInterval(timer);
     const was = armed; armed = false;
     if (p) set(0, 0, true);
-    if (was) setTimeout(() => toast('Up to date'), 180);
   };
   // touch (phones)
   sc.addEventListener('touchstart', (e) => start(e.touches[0].clientX, e.touches[0].clientY, e.target), { passive: true });
@@ -1179,7 +1303,7 @@ function save() {
   const repeat = d.repeat.length === 7 ? 'Every day' : d.repeat.length === 5 && !d.repeat.includes(5) && !d.repeat.includes(6) && !d.pick ? 'Mon–Fri' : d.repeat.length ? d.repeat.map((i) => ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i]).join(', ') : '';
   const nl = d.mode !== 'link' && d.nl && d.nl.found ? d.nl : null;
   const it = { id: nextId++, kind: d.mode, photo: d.mode !== 'link' && !!d.img, title: (nl ? nl.title : d.title.trim()) || 'Untitled', folder: d.folder, img: d.img, domain: d.domain, when: nl ? nl.label : whenText, repeat: nl && nl.repeat ? nl.repeat : repeat, today: /Today/.test(nl ? nl.label : whenText), order: 5, important: !!d.important, alert: d.alert, steps: d.mode === 'todo' && d.steps.length ? d.steps.map((t) => ({ t, d: false })) : undefined };
-  S.items.unshift(it);
+  gainXP(5); if (nl) maybeSchedule(it, nl); S.items.unshift(it);
   const sh = $('#sheet');
   sh.classList.add('go');
   buzz([10, 40, 14]);
@@ -1202,6 +1326,7 @@ function actionsSheet(it) {
 }
 
 // ------------------------------------------------------------------ actions
+function lilPoke() {}
 document.addEventListener('click', (e) => {
   const t = e.target.closest('[data-act],[data-tab]');
   if (!t) return;
@@ -1264,7 +1389,23 @@ document.addEventListener('click', (e) => {
     case 'vibe': S.vibe = !S.vibe; render(false); if (S.vibe) buzz([600, 120, 600, 120, 500]); break;
     case 'quiet': S.quiet = !S.quiet; render(false); break;
     case 'tone': S.tone = (S.tone + 1) % 3; render(false); chime(S.tone); break;
-    case 'lil-corner': openSheet(`<div style="display:flex;flex-direction:column;align-items:center;padding:10px 0 4px">${lil('idle', 120, 'corner')}<p style="font-size:22px;font-weight:600;margin-top:10px">Lil’s corner</p><p class="sub" style="text-align:center">Level 4 · 340 stars. Outfits, levels and the shop live here, out of the way.</p></div><div class="save-row"><button class="btn-blue press" data-act="close-sheet">Nice</button></div>`); break;
+    case 'lil-corner': openLil(); break;
+    case 'lil-open': if (e.target.closest('.lc-pen')) { renameSheet('lil'); break; } openLil(); break;
+    case 'lil-close': closeLil(); break;
+    case 'lil-poke': { const g = $('#lilv .lv-stage'); g.classList.remove('bounce'); void g.offsetWidth; g.classList.add('bounce'); buzz(10); const lines = ['Hi ' + S.me.name + '!', 'Day ' + S.streak + ', nice!', 'Got anything for me?', 'I like this outfit', 'Boop!']; toast(lines[(lilPoke.n = ((lilPoke.n || 0) + 1)) % lines.length]); break; }
+    case 'rename-lil': renameSheet('lil'); break;
+    case 'rename-me': renameSheet('me'); break;
+    case 'save-name': saveName(t.dataset.who); break;
+    case 'collect': collectHearts(+t.dataset.m, t); break;
+    case 'outfit': pickOutfit(+t.dataset.i, t); break;
+    case 'notes': notesSheet(); break;
+    case 'notes-read': S.notes.forEach((n) => (n.unread = false)); notesSheet(); render(false); break;
+    case 'push-done': hidePush(); markDone(id); break;
+    case 'push-later': hidePush(); markLater(id); break;
+    case 'test-notif': toast('Arriving in 3 seconds…'); setTimeout(() => pushNotif(queue()[0] || S.items.find((i) => !i.done)), 3000); break;
+    case 'streak-ok': closeStreak(); break;
+    case 'streak-lil': closeStreak(); openLil(); break;
+    case 'lil-corner-old': openSheet(`<div style="display:flex;flex-direction:column;align-items:center;padding:10px 0 4px">${lil('idle', 120, 'corner')}<p style="font-size:22px;font-weight:600;margin-top:10px">Lil’s corner</p><p class="sub" style="text-align:center">Level 4 · 340 stars. Outfits, levels and the shop live here, out of the way.</p></div><div class="save-row"><button class="btn-blue press" data-act="close-sheet">Nice</button></div>`); break;
     case 'chrome': toast('Opens the website’s Chrome page'); break;
     case 'new-folder': S.nf = { name: '', color: 0, icon: 0, shared: false }; openSheet(folderSheet()); bindFolderSheet(); setTimeout(() => $('#fname')?.focus(), 350); break;
     case 'make-folder': { const n = (S.nf.name || '').trim() || 'New folder'; S.folders.push({ name: n, base: 0, color: FCOLORS[S.nf.color], icon: S.nf.icon, shared: S.nf.shared }); closeSheet(); render(false); toast(S.nf.shared ? `“${n}” is ready · invite link copied` : `“${n}” is ready`); break; }
@@ -1309,7 +1450,7 @@ const origRender = render;
 render = function (anim) { if (!(S.folder && S.folderTab === 'chat')) document.querySelector('.composer')?.remove(); origRender(anim); };
 
 // a soft chime preview for the three tunes (Web Audio)
-function chime(n) {
+function chime(n, silent) {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const notes = [[84, 88, 91, 96], [79, 86, 79, 83], [81, 76]][n];
@@ -1321,7 +1462,7 @@ function chime(n) {
       g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.18, t + .01); g.gain.exponentialRampToValueAtTime(.001, t + (n === 2 ? .7 : .35));
       o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + .8);
     });
-    toast(['Lil hello', 'Pop pop', 'Soft chime'][n] + ' · plays 3 times');
+    if (!silent) toast(['Lil hello', 'Pop pop', 'Soft chime'][n] + ' · plays 3 times');
   } catch (e) {}
 }
 
@@ -1554,7 +1695,7 @@ function addFromText(v, from) {
   let it;
   if (url) { const u = url[0].startsWith('http') ? url[0] : 'https://' + url[0]; let host = 'link'; try { host = new URL(u).hostname.replace(/^www\./, ''); } catch (e) {} it = { id: nextId++, kind: 'link', title: /youtu/.test(host) ? 'Design systems talk' : 'Saved from ' + host, url: u, domain: host, img: /youtu/.test(host) ? C('d6') : C('d11'), folder: '', when: '', order: 9 }; }
   else { const r = parseNL(v); it = { id: nextId++, kind: 'reminder', title: (r.found ? r.title : v) || v, folder: '', when: r.found ? r.label : 'Today, 9:00 pm', repeat: r.repeat || '', order: r.date ? r.date.getHours() : 21 }; it.today = /^Today/.test(it.when); }
-  S.items.unshift(it);
+  S.items.unshift(it); gainXP(5); if (!url) maybeSchedule(it, parseNL(v));
   buzz([10, 30, 12]);
   const b = (from || $('.view:not(.leaving) #sgo') || $('#micfab')).getBoundingClientRect(); sparks(b.left + b.width / 2, b.top + b.height / 2, 8);
   S.promote = !!it.today && queue()[0] === it; render(false);
@@ -1570,27 +1711,53 @@ function mountMic() {
   const v = document.createElement('div'); v.className = 'voice'; v.id = 'voice';
   screen.insertBefore(v, $('#scrim'));
 }
-let VT = null;
+let VT = null, VS = null;
 function voiceAdd() {
-  closeSheet();
+  closeSheet(); hidePush();
   const v = $('#voice');
-  v.innerHTML = `<div class="vwave"><i></i><i></i><i></i><i></i><i></i></div><p class="vtext" id="vtext"><span class="hint">Listening… try “call mom 9pm tomorrow”</span></p><div class="vdet" id="vdet"></div><div class="vrow"><button class="btn-ghost press" data-act="voice-cancel">Cancel</button><button class="btn-blue press" data-act="voice-add" id="vadd" disabled>Add</button></div>`;
+  v.innerHTML = `<div class="vlil" id="vlil">${lil('listen', 120)}</div><p class="vtext" id="vtext"><span class="hint">I’m listening… try “call mom 9pm tomorrow”</span></p><div class="vdet" id="vdet"></div><p class="vstat" id="vstat">Speak, then pause. ${esc(S.lil.name)} adds it for you.</p><div class="vrow"><button class="btn-ghost press" data-act="voice-cancel">Cancel</button><button class="btn-blue press" data-act="voice-add" id="vadd" disabled>Add</button></div>`;
   v.classList.remove('ready'); v.classList.add('show'); $('#micfab').classList.add('on'); $('#scrim').classList.add('show');
-  const fake = { value: '' };
+  const st = { value: '', live: true }; S.voice = st; VS = st;
+  let silT = 0, heardAny = false, audio = false, fell = false;
   const upd = () => {
-    const r = parseNL(fake.value);
-    let html = '', last = 0; for (const [a, b] of r.ranges) { html += esc(fake.value.slice(last, a)) + '<mark>' + esc(fake.value.slice(a, b)) + '</mark>'; last = b; } html += esc(fake.value.slice(last));
-    $('#vtext').innerHTML = html || '<span class="hint">Listening…</span>';
+    const r = parseNL(st.value);
+    let html = '', last = 0; for (const [a, b] of r.ranges) { html += esc(st.value.slice(last, a)) + '<mark>' + esc(st.value.slice(a, b)) + '</mark>'; last = b; } html += esc(st.value.slice(last));
+    $('#vtext').innerHTML = html || '<span class="hint">I’m listening…</span>';
     $('#vdet').innerHTML = detectChips(r);
-    $('#vadd').disabled = !fake.value.trim();
+    $('#vadd').disabled = !st.value.trim();
+    const l = $('#vlil'); l.classList.remove('hear'); void l.offsetWidth; l.classList.add('hear');
   };
-  const done = () => { if (!fake.value.trim() || S.voice !== fake) return; $('#voice').classList.add('ready'); clearTimeout(VT); VT = setTimeout(commitVoice, 1600); };
-  const btn = { classList: { _on: false, contains() { return this._on; }, add() { this._on = true; }, remove() { this._on = false; done(); } } };
-  S.voice = fake;
-  listen(fake, btn, upd);
+  const ready = () => {
+    if (S.voice !== st || !st.value.trim() || !st.live) return;
+    st.live = false; try { REC && REC.stop(); } catch (e) {}
+    $('#vlil').innerHTML = lil('happy', 120); $('#vlil').classList.add('got');
+    $('#vstat').textContent = 'Got it! Adding this in a few seconds…';
+    v.classList.add('ready'); clearTimeout(VT); VT = setTimeout(commitVoice, 7000);
+  };
+  const heard = () => { heardAny = true; upd(); clearTimeout(silT); silT = setTimeout(ready, 1600); };
+  const demo = () => {
+    if (fell || S.voice !== st) return; fell = true;
+    const phrases = ['call mom 9pm tomorrow', 'gym 7am every day', 'pay electricity bill on monday', 'water the plants weekdays 8am'];
+    const p = phrases[(voiceAdd.n = ((voiceAdd.n || 0) + 1)) % phrases.length];
+    let k = 0;
+    const words = p.split(' ');
+    const tick = () => { if (S.voice !== st || !st.live) return; st.value = words.slice(0, ++k).join(' '); heard(); if (k < words.length) setTimeout(tick, 260); };
+    setTimeout(tick, 700);
+  };
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return demo();
+  try {
+    REC = new SR(); REC.lang = 'en-IN'; REC.interimResults = true; REC.continuous = true;
+    REC.onaudiostart = () => { audio = true; };
+    REC.onresult = (e) => { if (!st.live) return; st.value = Array.from(e.results).map((x) => x[0].transcript).join(' ').replace(/\s+/g, ' ').trim(); heard(); };
+    REC.onerror = (e) => { if (!heardAny) demo(); };
+    REC.onend = () => { if (heardAny) ready(); else if (!audio) demo(); else if (st.live && S.voice === st) { try { REC.start(); } catch (e) {} } };
+    REC.start();
+    setTimeout(() => { if (!audio && !heardAny) { try { REC.abort(); } catch (e) {} demo(); } }, 2500);
+  } catch (e) { demo(); }
 }
 function stopVoice(cancel) {
-  clearTimeout(VT); try { REC && REC.stop(); } catch (e) {}
+  clearTimeout(VT); if (VS) VS.live = false; try { REC && REC.abort(); } catch (e) {}
   $('#voice').classList.remove('show', 'ready'); $('#micfab').classList.remove('on'); $('#scrim').classList.remove('show');
   if (cancel) S.voice = null;
 }
@@ -1598,6 +1765,159 @@ function commitVoice() {
   const v = S.voice && S.voice.value; stopVoice(false);
   S.voice = null;
   if (v) addFromText(v, $('#micfab'));
+}
+
+// ------------------------------------------------------------------ Lil: streak, hearts, levels, outfits
+const LEVELS = [['Tiny', 0], ['Little', 50], ['Growing', 150], ['Big', 300], ['Mega', 500]];
+const LSCALE = [.7, .8, .9, 1, 1.1];
+const MILES = [3, 5, 10, 21, 33];
+const OUTFITS = [['Everyday', 0], ['Cozy scarf', 5], ['Headphones', 10], ['Star crown', 18]];
+const lvlOf = (xp) => { let n = 0; LEVELS.forEach(([, m], i) => { if (xp >= m) n = i; }); return n; };
+const II = {
+  heart: (s = 16) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.3A4.2 4.2 0 0 1 12 7.6a4.2 4.2 0 0 1 7.5 2.6c0 5.7-7.5 10.3-7.5 10.3z" fill="var(--ember)"/></svg>`,
+  snow: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5 12 7l2.5-2.5M9.5 19.5 12 17l2.5 2.5"/></svg>',
+  x: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  pen: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/></svg>',
+  bigflame: (s = 64, on = true) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5c1.2 4 5.8 6 5.8 11.2a5.8 5.8 0 0 1-11.6 0c0-2.9 1.7-4.6 2.9-5.8.3 1.8 1.4 3 2.9 3.5-.7-3.5 0-6.4 0-8.9z" fill="${on ? 'var(--ember)' : 'var(--chipbg)'}"/><path d="M12 13.2c.6 1.7 2.6 2.4 2.6 4.4a2.6 2.6 0 0 1-5.2 0c0-1.2.7-1.9 1.3-2.4.2.8.6 1.2 1.3 1.4-.3-1.4 0-2.4 0-3.4z" fill="${on ? '#FFD9A0' : 'transparent'}"/></svg>`,
+  dot: '<i class="ndot"></i>',
+};
+function outfitSvg(n) {
+  if (n === 1) return '<path d="M33 144 q67 28 134 0 v19 q-67 28 -134 0z" fill="#E4573D"/><path d="M38 152 q62 25 124 0" stroke="#FFD9C9" stroke-width="3" fill="none" opacity=".55" stroke-dasharray="10 8"/><path d="M121 167 l15 -2 l7 30 l-16 4z" fill="#C9432C"/>';
+  if (n === 2) return '<path d="M34 96 C34 12 166 12 166 96" fill="none" stroke="#26262E" stroke-width="11" stroke-linecap="round"/><rect x="16" y="80" width="28" height="50" rx="13" fill="#26262E"/><rect x="156" y="80" width="28" height="50" rx="13" fill="#26262E"/><rect x="23" y="89" width="9" height="32" rx="4.5" style="fill:var(--blue)"/><rect x="168" y="89" width="9" height="32" rx="4.5" style="fill:var(--blue)"/>';
+  if (n === 3) return '<path d="M72 48 L77 16 L91 32 L100 8 L109 32 L123 16 L128 48 Z" fill="#FFC94A" stroke="#E0A526" stroke-width="2.5" stroke-linejoin="round"/><circle cx="100" cy="38" r="4.5" fill="#E4573D"/><circle cx="83" cy="41" r="3" fill="#fff" opacity=".8"/><circle cx="117" cy="41" r="3" fill="#fff" opacity=".8"/>';
+  return '';
+}
+const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+function checkIn() {
+  const L = S.lil, now = new Date(), today = dayKey(now);
+  if (L.last === today) return null;
+  let used = 0;
+  if (!L.last) S.streak++;
+  else {
+    const [y, m, d] = L.last.split('-').map(Number);
+    const gap = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(y, m - 1, d)) / 864e5);
+    if (gap === 1) S.streak++;
+    else if (gap > 1 && L.freezes >= gap - 1) { used = gap - 1; L.freezes -= used; S.streak++; }
+    else S.streak = 1;
+  }
+  L.last = today;
+  const earned = S.streak % 5 === 0; if (earned) L.freezes++;
+  if (earned) note(`Day ${S.streak}! You earned a streak freeze`, 'snow');
+  if (MILES.includes(S.streak)) note(`Day ${S.streak}! Hearts are ready for ${S.lil.name}`, 'heart');
+  persist();
+  return { earned, used, hearts: MILES.includes(S.streak) };
+}
+function streakMoment(ci) {
+  const o = $('#streakv');
+  const extra = ci.hearts ? `${II.heart(15)} Hearts are ready to collect` : ci.earned ? `${II.snow} You earned a streak freeze` : ci.used ? `${II.snow} A freeze kept your streak safe` : 'Come back tomorrow to keep it going';
+  o.innerHTML = `<div class="sm-card">
+    <div class="sm-lil">${lil('happy', 120)}</div>
+    <div class="sm-flame">${II.bigflame(64)}<b id="smn">${S.streak - 1}</b></div>
+    <p class="sm-t">Day ${S.streak}. Welcome back!</p>
+    <p class="sm-s">Your streak counts when you open the app each day.</p>
+    <div class="sm-x">${extra}</div>
+    <div class="save-row" style="width:100%"><button class="btn-ghost press" data-act="streak-lil">See ${esc(S.lil.name)}</button><button class="btn-blue press" data-act="streak-ok">Keep going</button></div>
+  </div>`;
+  o.classList.add('show'); buzz([12, 40, 18]);
+  setTimeout(() => { const n = $('#smn'); if (!n) return; n.classList.add('tick'); n.textContent = S.streak; const r = n.getBoundingClientRect(); sparks(r.left + r.width / 2, r.top + r.height / 2, 12); }, 650);
+}
+function closeStreak() { $('#streakv').classList.remove('show'); }
+function note(t, ic = 'bell', id) { S.notes.unshift({ t, ic, ago: 'Just now', unread: true, id }); }
+function gainXP(n) {
+  const a = lvlOf(S.lil.xp); S.lil.xp += n; const b = lvlOf(S.lil.xp);
+  if (b > a) { note(`${S.lil.name} grew to ${LEVELS[b][0]} size`, 'spark'); setTimeout(() => toast(`${S.lil.name} grew! Now ${LEVELS[b][0]} size`), 900); }
+}
+function heartsReady() { let p = 0, sum = 0; for (const m of MILES) { if (S.streak >= m && !S.lil.collected.includes(m)) sum += m - p; p = m; } return sum; }
+
+function openLil() { closeSheet(); renderLil(); const v = $('#lilv'); v.classList.add('show'); v.scrollTop = 0; buzz(); }
+function closeLil() { $('#lilv').classList.remove('show'); render(false); }
+function renderLil(bounce) {
+  const L = S.lil, lv = lvlOf(L.xp), next = LEVELS[lv + 1];
+  const prog = next ? (L.xp - LEVELS[lv][1]) / (next[1] - LEVELS[lv][1]) : 1;
+  const W = ['M', 'T', 'W', 'T', 'F', 'S', 'S'], td = (new Date().getDay() + 6) % 7;
+  const days = Array.from({ length: 7 }, (_, i) => { const back = (td - i + 7) % 7; const fut = i > td; const on = !fut && back < S.streak; return `<span class="wd ${on ? 'on' : ''} ${i === td ? 'now' : ''}">${II.bigflame(22, on)}<small>${W[i]}</small></span>`; }).join('');
+  let prev = 0;
+  const miles = MILES.map((m) => { const amt = m - prev; prev = m; const got = L.collected.includes(m), rdy = !got && S.streak >= m; return `<button class="mile press ${got ? 'got' : rdy ? 'rdy' : ''}" ${rdy ? `data-act="collect" data-m="${m}"` : ''}>${II.heart(18)}<b>${got ? 'Collected' : rdy ? `Collect ${amt}` : `+${amt}`}</b><small>Day ${m}</small></button>`; }).join('');
+  const ladder = LEVELS.map(([n], i) => `<div class="rung ${i === lv ? 'on' : ''} ${i > lv ? 'off' : ''}">${lil('idle', Math.round(34 + i * 9), '', i === lv ? L.outfit : 0)}<small>${n}</small></div>`).join('');
+  const outfits = OUTFITS.map(([n, c], i) => { const own = L.owned.includes(i), wear = L.outfit === i, can = L.hearts >= c; return `<button class="otile press ${wear ? 'on' : ''}" data-act="outfit" data-i="${i}"><span class="ostage">${lil('idle', 86, '', i)}</span><b>${n}</b><small>${wear ? 'Wearing' : own ? 'Wear' : `${II.heart(12)} ${c}${can ? '' : ' · locked'}`}</small></button>`; }).join('');
+  $('#lilv').innerHTML = `
+    <div class="lv-top"><button class="circ press" data-act="lil-close" aria-label="Close">${II.x}</button><span class="pill">${II.heart(15)}${L.hearts}</span></div>
+    <div class="lv-hero in" style="--i:0">
+      <div class="lv-stage ${bounce ? 'bounce' : ''}" data-act="lil-poke"><div style="transform:scale(${LSCALE[lv]});transform-origin:50% 100%;transition:transform .6s var(--spring)">${lil('idle', 190, 'big')}</div></div>
+      <div class="lv-name"><h1>${esc(L.name)}</h1><button class="circ press" data-act="rename-lil" aria-label="Rename" style="width:34px;height:34px">${II.pen}</button></div>
+      <p class="sub" style="text-align:center;margin-top:2px">${LEVELS[lv][0]} size · wearing ${OUTFITS[L.outfit][0].toLowerCase()}</p>
+    </div>
+    <section class="lv-card in" style="--i:1">
+      <div class="lv-row"><div class="lv-big">${II.bigflame(44)}<div><b>${S.streak}</b><span>day streak</span></div></div><span class="chip2">${II.snow}${L.freezes} ${L.freezes === 1 ? 'freeze' : 'freezes'}</span></div>
+      <div class="week7">${days}</div>
+      <p class="lv-hint">Opening the app once a day keeps the flame. Every 5 days you earn a freeze that saves a missed day.</p>
+    </section>
+    <h3 class="lv-h in" style="--i:2">Hearts</h3>
+    <section class="lv-card in" style="--i:2"><div class="miles">${miles}</div><p class="lv-hint">${heartsReady() ? 'Tap a glowing heart to collect it.' : `Keep your streak to collect hearts on day ${MILES.find((m) => !L.collected.includes(m) && m > S.streak) || 33}.`} Spend them on outfits.</p></section>
+    <h3 class="lv-h in" style="--i:3">Growing up</h3>
+    <section class="lv-card in" style="--i:3"><div class="ladder">${ladder}</div>
+      <div class="bar2"><i style="width:${Math.round(prog * 100)}%"></i></div>
+      <p class="lv-hint">${next ? `${next[1] - L.xp} points until ${next[0]} size.` : 'Fully grown!'} Save something +5 · finish it +15.</p></section>
+    <h3 class="lv-h in" style="--i:4">Outfits</h3>
+    <section class="ogrid in" style="--i:4">${outfits}</section>
+    <div style="height:40px"></div>`;
+}
+function collectHearts(m, el) {
+  const L = S.lil; let p = 0; for (const x of MILES) { if (x === m) break; p = x; }
+  if (L.collected.includes(m) || S.streak < m) return;
+  L.collected.push(m); L.hearts += m - p; buzz([10, 30, 10]);
+  const r = el.getBoundingClientRect(); sparks(r.left + r.width / 2, r.top + r.height / 2, 14);
+  toast(`+${m - p} hearts`); setTimeout(() => renderLil(true), 380);
+}
+function pickOutfit(i, el) {
+  const L = S.lil, [n, c] = OUTFITS[i];
+  if (!L.owned.includes(i)) {
+    if (L.hearts < c) { toast(`Need ${c - L.hearts} more hearts for ${n.toLowerCase()}`); el.classList.add('nope'); setTimeout(() => el.classList.remove('nope'), 400); return; }
+    L.hearts -= c; L.owned.push(i); toast(`Unlocked ${n.toLowerCase()}!`);
+    const r = el.getBoundingClientRect(); sparks(r.left + r.width / 2, r.top + r.height / 2, 14);
+  }
+  L.outfit = i; buzz([10, 30, 10]); persist(); renderLil(true);
+}
+function renameSheet(who) {
+  const v = who === 'lil' ? S.lil.name : S.me.name;
+  openSheet(`<p style="font-size:22px;font-weight:600;margin:0 4px 6px">${who === 'lil' ? 'Name your buddy' : 'What should we call you?'}</p>
+    <p class="sub" style="margin:0 4px 14px">${who === 'lil' ? 'This name shows across the app and on your reminders.' : 'Used in your greeting and in shared folders.'}</p>
+    ${who === 'lil' ? `<div style="display:grid;place-items:center;margin-bottom:10px">${lil('happy', 96)}</div>` : ''}
+    <div class="field"><input id="nmIn" maxlength="14" value="${esc(v)}" aria-label="Name" autocomplete="off" style="flex:1;border:0;outline:0;background:none;font-size:17px;height:50px"></div>
+    <div class="save-row"><button class="btn-ghost press" data-act="close-sheet">Cancel</button><button class="btn-blue press" data-act="save-name" data-who="${who}">Save</button></div>`);
+  setTimeout(() => { const i = $('#nmIn'); if (i) { i.focus(); i.select(); i.addEventListener('keydown', (e) => { if (e.key === 'Enter') $('[data-act="save-name"]').click(); }); } }, 320);
+}
+function saveName(who) {
+  const v = ($('#nmIn')?.value || '').trim(); if (!v) return toast('Give it a name first');
+  if (who === 'lil') { S.lil.name = v; toast(`Say hi to ${v}!`); } else { S.me.name = v; toast(`Hi ${v}!`); }
+  closeSheet(); persist(); if ($('#lilv').classList.contains('show')) renderLil(true); render(false);
+}
+
+// ------------------------------------------------------------------ notifications
+function notesSheet() {
+  const ic = { bell: I.bell, snow: II.snow, heart: II.heart(16), spark: I.star, folder: I.users };
+  openSheet(`<div style="display:flex;justify-content:space-between;align-items:center;margin:0 4px 12px"><p style="font-size:22px;font-weight:600">Notifications</p>${S.notes.some((n) => n.unread) ? '<button class="meta press" data-act="notes-read" style="color:var(--blue-ink)">Mark all read</button>' : ''}</div>
+    ${S.notes.length ? `<div class="list" style="margin:0">${S.notes.map((n) => `<div class="row nrow ${n.unread ? 'unread' : ''}"><span class="tico" style="width:40px;height:40px;border-radius:12px">${ic[n.ic] || I.bell}</span><span class="grow" style="font-size:15px;font-weight:500;line-height:1.35">${esc(n.t)}<span class="meta" style="display:block;margin-top:3px">${n.ago}</span></span>${n.unread ? '<i class="ndot"></i>' : ''}</div>`).join('')}</div>` : `<div style="display:grid;place-items:center;padding:20px 0">${lil('sleepy', 100)}<p class="sub">Nothing new. ${esc(S.lil.name)} is napping.</p></div>`}
+    <div class="save-row"><button class="btn-blue press" data-act="close-sheet">Close</button></div>`);
+}
+let PT;
+function pushNotif(it) {
+  if (!it) return;
+  const p = $('#push');
+  p.innerHTML = `<div class="pu-head">${mark(0, 20)}<span>Little Later</span><span style="margin-left:auto">now</span></div>
+    <div class="pu-body" data-act="actions" data-id="${it.id}"><b>${esc(it.title)}</b><span>${it.kind === 'link' ? 'Saved for ' + (it.when || 'now').replace(/^Today, /, '') + ' · ' + (it.domain || '') : esc(S.lil.name) + ' is reminding you · ' + (it.when || '').replace(/^Today, /, '')}</span></div>
+    <div class="pu-acts"><button class="press" data-act="push-done" data-id="${it.id}">Done</button><button class="press" data-act="push-later" data-id="${it.id}">Tomorrow</button></div>`;
+  p.classList.remove('show'); void p.offsetWidth; p.classList.add('show');
+  note(`“${it.title}” is due now`, 'bell', it.id);
+  chime(S.tone, true); buzz(S.vibe ? [200, 80, 200, 80, 400] : 20);
+  clearTimeout(PT); PT = setTimeout(() => p.classList.remove('show'), 9000);
+  render(false);
+}
+function hidePush() { clearTimeout(PT); $('#push').classList.remove('show'); }
+function maybeSchedule(it, r) {
+  if (!r || !r.date) return;
+  const ms = r.date - NOW;
+  if (ms > 0 && ms <= 60 * 60e3) setTimeout(() => { if (!it.done) pushNotif(it); }, ms);
 }
 
 // ------------------------------------------------------------------ brand page
@@ -1645,9 +1965,11 @@ function renderBrand() {
 }
 
 window.addEventListener('resize', () => render(false));
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeSheet(); $('#brand').classList.remove('show'); } });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeSheet(); $('#brand').classList.remove('show'); if ($('#lilv').classList.contains('show')) closeLil(); closeStreak(); } });
 { const h = location.hash.slice(1); if (LOOKS[h]) S.dir = h; document.documentElement.dataset.dir = S.dir; }
 $('#sidemark') && ($('#sidemark').innerHTML = mark(0, 64));
+screen.addEventListener('scroll', () => { if (screen.scrollTop) screen.scrollTop = 0; });
+{ const CI = checkIn(); if (CI) { render(false); setTimeout(() => streakMoment(CI), 1000); } }
 document.fonts && document.fonts.ready.then(() => knob($('#bar'), $('#bar button.on')));
 mountMic();
 document.querySelectorAll('.lookbtn').forEach((b) => b.classList.toggle('on', b.dataset.look === S.dir));
