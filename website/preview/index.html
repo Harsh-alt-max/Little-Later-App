@@ -36,7 +36,7 @@ html,body{height:100%}
    Geist 400 body · 500 UI labels/buttons · 600 titles & item names.  Geist Mono 500 for tiny uppercase labels only.
    Sizes: 11 · 13 · 15 · 17 · 22 · 28 · 34 · 44 */
 b,strong,h1,h2,h3,h4,th{font-weight:600}
-body{font-family:Geist,system-ui,sans-serif;background:#0b0c10 radial-gradient(70% 60% at 70% 0%,rgba(47,102,245,.18),transparent 70%);color:var(--ink);-webkit-font-smoothing:antialiased;overflow:hidden}
+body{font-family:Geist,system-ui,sans-serif;background:#0b0b0d radial-gradient(70% 60% at 70% 0%,rgba(255,159,126,.10),transparent 70%);color:var(--ink);-webkit-font-smoothing:antialiased;overflow:hidden}
 button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;padding:0}
 input,textarea{font:inherit;color:inherit}
 img{display:block}
@@ -46,11 +46,11 @@ svg{flex:none}
 .stage{height:100%;display:flex;align-items:center;justify-content:center;gap:64px;padding:24px}
 .side{max-width:330px;color:#E9EAF2}
 .side h1{font-size:34px;line-height:1.08;font-weight:600;letter-spacing:-.03em}
-.side h1 span{color:#8FAAFF}
+.side h1 span{color:#FFB59A}
 .side p{color:#A4A6B0;font-size:15px;line-height:1.55;margin-top:12px}
 .side ol{list-style:none;padding:0;margin-top:22px;counter-reset:s}
 .side li{counter-increment:s;display:flex;gap:10px;margin-bottom:11px;font-size:15px;line-height:1.45;color:#D8DAE4}
-.side li::before{content:counter(s);flex:none;width:22px;height:22px;border-radius:50%;background:rgba(90,126,255,.2);color:#8FAAFF;font-size:13px;font-weight:600;display:grid;place-items:center}
+.side li::before{content:counter(s);flex:none;width:22px;height:22px;border-radius:50%;background:rgba(255,159,126,.14);color:#FFB59A;font-size:13px;font-weight:600;display:grid;place-items:center}
 .side b{color:#fff;font-weight:600}
 .side .btn-share{margin-top:18px;height:46px;padding:0 18px;border-radius:99px;background:#fff;color:#16161A;font-weight:600;font-size:15px;display:inline-flex;align-items:center;gap:8px}
 .phone{position:relative;width:390px;height:844px;max-height:calc(100vh - 32px);border-radius:54px;padding:10px;background:var(--frame);box-shadow:0 0 0 2px #2a2e40,0 40px 120px rgba(0,0,0,.6);flex:none}
@@ -533,16 +533,16 @@ h1.page.in{animation:titleIn .8s var(--ease) both;animation-delay:calc(var(--i,0
 <div class="brand" id="brand" role="dialog" aria-label="Brand and logo"></div>
 <div class="stage">
   <section class="side">
-    <svg width="64" height="64" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="24" fill="#2F66F5"/><ellipse cx="38" cy="52" rx="11" ry="14" fill="#0B0E22"/><ellipse cx="38" cy="60" rx="7.5" ry="5.5" fill="#9DBBFF"/><circle cx="34.5" cy="46.5" r="3.4" fill="#fff"/><ellipse cx="62" cy="52" rx="11" ry="14" fill="#0B0E22"/><ellipse cx="62" cy="60" rx="7.5" ry="5.5" fill="#9DBBFF"/><circle cx="58.5" cy="46.5" r="3.4" fill="#fff"/></svg>
-    <h1 style="margin-top:14px">Little Later<br><span>Midnight, and its daylight twin</span></h1>
-    <p>Everything here works. Pick a look, then tap around like it's the real app.</p>
+    <span id="sidemark" style="display:block;width:64px;height:64px"></span>
+    <h1 style="margin-top:14px">Little Later<br><span>Try the new design</span></h1>
+    <p>Everything here works, and your changes stay in this browser. Pick a look, then use it like the real app.</p>
     <div class="looks" id="looks"><button class="lookbtn press" data-act="look" data-look="midnight"><i style="background:radial-gradient(circle at 50% 30%,#FF9F7E,#0A0A0C 70%)"></i>Midnight</button><button class="lookbtn press" data-act="look" data-look="daylight"><i style="background:radial-gradient(circle at 50% 20%,#FFD2C0,#F6F4F1 70%)"></i>Daylight</button></div>
     <ol>
-      <li><span><b>Type or speak</b> in the bar above the dock: “call mom 9pm tomorrow”. The time lights up as you type.</span></li>
-      <li><span>Tap <b>Done</b> on the big card. Same place on every card.</span></li>
+      <li><span><b>Type or paste</b> in the bar on Today: “call mom 9pm tomorrow” or any link. The time lights up as you type.</span></li>
+      <li><span>Tap the <b>mic</b> above the + and just say it. It adds itself.</span></li>
+      <li><span>Tap <b>Done</b> on the big card, or the clock for <b>Later</b> (same time tomorrow).</span></li>
       <li><span>Tap any reminder for its <b>details</b>: Done, Edit, Share, Delete.</span></li>
-      <li><span><b>Saved</b> has Today, Upcoming, Important and Done counts on top.</span></li>
-      <li><span><b>New folder</b>: pick a colour and an icon, share it with friends.</span></li>
+      <li><span><b>Saved</b> filters: Links, To-dos, Images. <b>New folder</b>: pick a colour and an icon.</span></li>
       <li><span>Pull down and hold anywhere. Lil peeks and blinks.</span></li>
     </ol>
     <button class="btn-share press" data-act="brand" style="margin-right:8px;background:rgba(255,255,255,.1);color:#fff">Brand &amp; logo</button>
@@ -1647,6 +1647,7 @@ function renderBrand() {
 window.addEventListener('resize', () => render(false));
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeSheet(); $('#brand').classList.remove('show'); } });
 { const h = location.hash.slice(1); if (LOOKS[h]) S.dir = h; document.documentElement.dataset.dir = S.dir; }
+$('#sidemark') && ($('#sidemark').innerHTML = mark(0, 64));
 document.fonts && document.fonts.ready.then(() => knob($('#bar'), $('#bar button.on')));
 mountMic();
 document.querySelectorAll('.lookbtn').forEach((b) => b.classList.toggle('on', b.dataset.look === S.dir));
