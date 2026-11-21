@@ -626,6 +626,23 @@ h1.page.in{animation:titleIn .8s var(--ease) both;animation-delay:calc(var(--i,0
 .pu-acts button{height:36px;border-radius:12px;background:var(--chipbg);font-size:13px;font-weight:600}
 .nrow.unread{background:var(--chipbg)}
 
+/* split: several things at once */
+.sp-seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:14px;background:var(--chipbg);width:100%}
+.sp-seg button{height:32px;border-radius:10px;font-size:13px;font-weight:500;color:var(--ink2)}
+.sp-seg button.on{background:var(--card);color:var(--ink);font-weight:600}
+.sp-list{width:100%;display:flex;flex-direction:column;gap:2px;margin-top:8px}
+.sp-row{display:flex;align-items:center;gap:10px;min-height:38px;padding:0 12px;border-radius:12px;background:var(--card);font-size:15px;text-align:left;animation:rise .3s var(--ease) both}
+.sp-row svg{width:16px;height:16px;opacity:.7;flex:none}
+.sp-row b{font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sp-row span{font-size:13px;color:var(--blue-ink);font-weight:500;flex:none}
+.sp-step{margin-left:18px}
+.vdet .sp-row span,.sb-detect .sp-row span,.vdet .sp-seg button,.sb-detect .sp-seg button{background:none;height:auto;padding:0;animation:none}
+.vdet .sp-seg button.on,.sb-detect .sp-seg button.on{background:var(--card)}
+.sp-seg button{height:32px!important}
+.sp-step i{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--ink3);flex:none}
+.sb-detect:has(.sp-seg){flex-direction:column;flex-wrap:nowrap;background:var(--card2,transparent)}
+.vdet:has(.sp-seg){flex-direction:column;flex-wrap:nowrap}
+.vdet .sp-row{background:var(--chipbg)}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
@@ -641,7 +658,7 @@ h1.page.in{animation:titleIn .8s var(--ease) both;animation-delay:calc(var(--i,0
     <div class="looks" id="looks"><button class="lookbtn press" data-act="look" data-look="midnight"><i style="background:radial-gradient(circle at 50% 30%,#FF9F7E,#0A0A0C 70%)"></i>Midnight</button><button class="lookbtn press" data-act="look" data-look="daylight"><i style="background:radial-gradient(circle at 50% 20%,#FFD2C0,#F6F4F1 70%)"></i>Daylight</button></div>
     <ol>
       <li><span><b>Type or paste</b> in the bar on Today: “call mom 9pm tomorrow” or any link. The time lights up as you type.</span></li>
-      <li><span>Tap the <b>mic</b> above the + and just say it. Lil listens, then adds it.</span></li>
+      <li><span>Tap the <b>mic</b> above the + and just say it. Lil listens, then adds it. Say a few things at once (“dairy at 7 am and school at 10”) and pick reminders or one to-do list.</span></li>
       <li><span>Tap the <b>flame</b> for your streak, hearts, outfits and Lil’s name.</span></li>
       <li><span>Tap <b>Done</b> on the big card, or the clock for <b>Later</b> (same time tomorrow).</span></li>
       <li><span>Tap any reminder for its <b>details</b>: Done, Edit, Share, Delete.</span></li>
@@ -1350,6 +1367,8 @@ document.addEventListener('click', (e) => {
     case 'nf-icon': S.nf.icon = +t.dataset.i; buzz(); refreshFolderSheet(); break;
     case 'nf-share': S.nf.shared = !S.nf.shared; buzz(); refreshFolderSheet(); break;
     case 'voice': voiceAdd(); break;
+    case 'v-mode': if (S.voice) { S.voice.mode = t.dataset.m; const sp = S.voice.sp; $('#vdet').innerHTML = splitPreview(sp, S.voice.mode, 'v-mode'); $('#vadd').textContent = S.voice.mode === 'list' ? 'Add list' : `Add ${sp.parts.length}`; if ($('#voice').classList.contains('ready')) { clearTimeout(VT); const b = $('#vadd'); b.style.animation = 'none'; void b.offsetWidth; b.style.animation = ''; VT = setTimeout(commitVoice, 7000); } } break;
+    case 'bar-mode': if (S.barSplit) { S.barMode = t.dataset.m; $('.view:not(.leaving) #sdetect').innerHTML = splitPreview(S.barSplit, S.barMode, 'bar-mode'); } break;
     case 'voice-cancel': stopVoice(true); break;
     case 'voice-add': commitVoice(); break;
     case 'sheet-mic': { const t2 = $('#title'); listen(t2, t, () => t2.dispatchEvent(new Event('input'))); break; }
@@ -1532,7 +1551,7 @@ function paintMirror(input, mirror, r) {
 }
 function detectChips(r) {
   if (!r || !r.found) return '';
-  return `<span>${I.clock}<b>${esc(r.label)}</b></span>${r.repeat ? `<span>${I.repeat}${esc(r.repeat)}</span>` : ''}${r.title ? `<span>“${esc(r.title.slice(0, 26))}${r.title.length > 26 ? '…' : ''}”</span>` : ''}`;
+  return `<span>${I.clock}<b>${esc(r.label)}</b></span>${r.repeat ? `<span>${I.repeat}${esc(r.repeat)}</span>` : ''}${r.title ? (() => { const t = cleanTitle(r.title); return `<span>“${esc(t.slice(0, 26))}${t.length > 26 ? '…' : ''}”</span>`; })() : ''}`;
 }
 
 // ------------------------------------------------------------------ quick add bar (Today)
@@ -1555,7 +1574,7 @@ function quickAdd() {
   const url = v.match(/https?:\/\/\S+/);
   let it;
   if (url) it = { id: nextId++, kind: 'link', title: 'Saved link', url: url[0], domain: (() => { try { return new URL(url[0]).hostname.replace(/^www\./, ''); } catch (e) { return 'link'; } })(), folder: '', when: '', order: 9 };
-  else { const r = parseNL(v); it = { id: nextId++, kind: 'reminder', title: (r.found ? r.title : v) || v, folder: '', when: r.found ? r.label : 'Today, 9:00 pm', repeat: r.repeat || '', order: r.date ? r.date.getHours() : 21 }; it.today = /^Today/.test(it.when); }
+  else { const r = parseNL(v); it = { id: nextId++, kind: 'reminder', title: cleanTitle(r.found ? r.title : v) || v, folder: '', when: r.found ? r.label : 'Today, 9:00 pm', repeat: r.repeat || '', order: r.date ? r.date.getHours() : 21 }; it.today = /^Today/.test(it.when); }
   S.items.unshift(it);
   inp.value = ''; $('#detect').innerHTML = ''; $('#qmirror').innerHTML = ''; $('#qsend').disabled = true;
   buzz([10, 30, 12]);
@@ -1570,7 +1589,7 @@ function listen(inp, btn, upd) {
   if (btn.classList.contains('on')) { try { REC && REC.stop(); } catch (e) {} btn.classList.remove('on'); return; }
   btn.classList.add('on'); buzz(10);
   const demo = () => {
-    const phrases = ['call mom 9pm tomorrow', 'gym 7am every day', 'pay electricity bill on monday', 'water the plants weekdays 8am'];
+    const phrases = ['call mom 9pm tomorrow', 'tomorrow I want to go to the dairy at 7 am and school at 10', 'gym 7am every day', 'buy milk, eggs and bread', 'pay electricity bill on monday'];
     const p = phrases[(listen.n = ((listen.n || 0) + 1)) % phrases.length];
     inp.value = ''; let k = 0;
     const tick = () => { if (!btn.classList.contains('on')) return; inp.value = p.slice(0, ++k); upd(); if (k < p.length) setTimeout(tick, 45); else { btn.classList.remove('on'); inp.focus && inp.focus(); } };
@@ -1682,16 +1701,27 @@ function wireSavebar() {
     const v = inp.value; const isUrl = /https?:\/\/|www\.|\.com\b/.test(v);
     const r = isUrl ? { found: false, ranges: [] } : parseNL(v);
     paintMirror(inp, mir, r); go.disabled = !v.trim();
-    det.innerHTML = isUrl ? `<span>${I.link}<b>Link</b> · saves to Saved</span>` : detectChips(r);
+    const sp = isUrl ? null : splitTasks(v); S.barSplit = sp; if (!sp) S.barMode = null;
+    det.innerHTML = isUrl ? `<span>${I.link}<b>Link</b> · saves to Saved</span>` : sp ? splitPreview(sp, S.barMode || sp.def, 'bar-mode') : detectChips(r);
   };
   inp.addEventListener('input', upd); inp.addEventListener('scroll', upd);
-  $('.view:not(.leaving) #savebar').addEventListener('submit', (e) => { e.preventDefault(); addFromText(inp.value); });
+  $('.view:not(.leaving) #savebar').addEventListener('submit', (e) => { e.preventDefault(); const m = S.barSplit ? (S.barMode || S.barSplit.def) : null; addFromText(inp.value, null, m); S.barMode = null; S.barSplit = null; });
   const ph = $('.view:not(.leaving) #sphoto');
   ph.addEventListener('change', () => { const f = ph.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => { newDraft(false); S.draft.mode = 'reminder'; S.draft.folder = ''; S.draft.img = rd.result; S.draft.title = inp.value; openSheet(saveSheet()); bindSheetInputs(); }; rd.readAsDataURL(f); });
 }
-function addFromText(v, from) {
+function addFromText(v, from, mode) {
   v = (v || '').trim(); if (!v) return;
   const url = v.match(/(https?:\/\/\S+|www\.\S+)/);
+  const sp = url ? null : splitTasks(v);
+  if (sp) {
+    const m = mode || sp.def, made = buildSplit(sp, m);
+    made.slice().reverse().forEach((x) => S.items.unshift(x)); made.forEach((x) => { gainXP(5); maybeSchedule(x, x._r); delete x._r; });
+    buzz([10, 30, 12, 30, 12]);
+    const b = (from || $('.view:not(.leaving) #sgo') || $('#micfab')).getBoundingClientRect(); sparks(b.left + b.width / 2, b.top + b.height / 2, 12);
+    S.promote = made.some((x) => x.today); render(false);
+    toast(m === 'list' ? `Added a to-do list · ${made[0].steps.length} steps` : `Added ${made.length} reminders`, () => { made.forEach((x) => S.items.splice(S.items.indexOf(x), 1)); render(false); });
+    return;
+  }
   let it;
   if (url) { const u = url[0].startsWith('http') ? url[0] : 'https://' + url[0]; let host = 'link'; try { host = new URL(u).hostname.replace(/^www\./, ''); } catch (e) {} it = { id: nextId++, kind: 'link', title: /youtu/.test(host) ? 'Design systems talk' : 'Saved from ' + host, url: u, domain: host, img: /youtu/.test(host) ? C('d6') : C('d11'), folder: '', when: '', order: 9 }; }
   else { const r = parseNL(v); it = { id: nextId++, kind: 'reminder', title: (r.found ? r.title : v) || v, folder: '', when: r.found ? r.label : 'Today, 9:00 pm', repeat: r.repeat || '', order: r.date ? r.date.getHours() : 21 }; it.today = /^Today/.test(it.when); }
@@ -1700,6 +1730,60 @@ function addFromText(v, from) {
   const b = (from || $('.view:not(.leaving) #sgo') || $('#micfab')).getBoundingClientRect(); sparks(b.left + b.width / 2, b.top + b.height / 2, 8);
   S.promote = !!it.today && queue()[0] === it; render(false);
   toast(it.kind === 'link' ? 'Link saved' : `Added · ${it.when}${it.repeat ? ' · ' + it.repeat.toLowerCase() : ''}`, () => { S.items.splice(S.items.indexOf(it), 1); render(false); });
+}
+
+// ------------------------------------------------------------------ one sentence → several reminders or a to-do list
+const LEAD = /^\s*(?:(?:ok(?:ay)?|hey|so|and|also|then|um+|uh+)[\s,]+)*(?:(?:i\s+(?:want|need|have|got|wanna)\s+to|i(?:'m|\s+am)\s+going\s+to|i\s+will|i'll|remind\s+me\s+to|remind\s+me|remember\s+to|don'?t\s+forget\s+to|please|i\s+(?:want|need)|add)\s+)?/i;
+function cleanTitle(t) { t = (t || '').replace(LEAD, '').replace(/\s+(?:and\s+so|etc|and\s+all|so\s+on)\.?$/i, '').replace(/[.,;]+$/, '').trim(); return t.charAt(0).toUpperCase() + t.slice(1); }
+const TIMED = /\d\s*(?:am|pm)\b|\bat\s+\d|\bnoon\b|\bmidnight\b|\btonight\b|\bin\s+\d+\s*(?:min|hour|hr)|\b(?:morning|afternoon|evening)\b/i;
+const DAYW = /\b(today|tonight|tomorrow|tmrw|tmr|(?:on\s+)?(?:mon|tues|wednes|thurs|fri|satur|sun)day)\b/i;
+function splitTasks(text) {
+  const raw = (text || '').trim(); if (!raw || /https?:\/\/|www\./.test(raw)) return null;
+  const segs = raw.split(/\s*(?:,|;|\band\s+then\b|\bthen\b|\band\s+also\b|\balso\b|\band\b)\s*/i).map((x) => x.trim()).filter((x) => x.replace(LEAD, '').replace(/^(so|etc|all|on)$/i, '').trim().length > 1);
+  if (segs.length < 2) return null;
+  let carry = '';
+  const parts = segs.map((sg) => {
+    const dm = sg.match(DAYW); if (dm) carry = dm[0];
+    const timed = TIMED.test(sg) || !!dm;
+    const r = parseNL(timed && !dm && carry ? sg + ' ' + carry : sg);
+    return { text: sg, timed, r, title: cleanTitle(r.found ? r.title : sg) };
+  }).filter((p) => p.title.length > 1);
+  if (parts.length < 2) return null;
+  // "dairy at 7 am and school at 10" → school is 10 pm, not 10 am
+  let prev = null;
+  parts.forEach((p) => {
+    const d = p.r.date;
+    if (d && prev && d < prev && !/\b(am|pm)\b|morning/i.test(p.text) && d.getHours() < 12) { const n = new Date(d); n.setHours(d.getHours() + 12); if (n > prev) { p.r = { ...p.r, date: n, label: `${dayLabel(n)}, ${fmtTime(n)}` }; } }
+    if (p.r.date) prev = p.r.date;
+  });
+  const timedN = parts.filter((p) => p.timed).length;
+  const cue = raw.replace(LEAD, '').match(/^(to\s*-?\s*do(?:\s+list)?|list|shopping|grocer\w*|buy|get|pick\s+up|pack)\b[:\s]*/i);
+  if (timedN < 2 && !cue && parts.length < 3) return null;
+  let listTitle = 'To-do list';
+  if (cue) {
+    const c = cue[1].toLowerCase(); listTitle = /buy|get|shop|grocer|pick/.test(c) ? 'Shopping list' : /pack/.test(c) ? 'Packing list' : 'To-do list';
+    if (/^(to|list)/.test(c)) parts[0].title = cleanTitle(parts[0].title.replace(/^(to\s*-?\s*do(\s+list)?|list)[:\s]*/i, ''));
+    else if (/buy|get|pick|pack/.test(c)) parts[0].title = cleanTitle(parts[0].title.replace(/^(buy|get|pick\s+up|pack)\s+/i, ''));
+  }
+  const day = parts.find((p) => p.r.date);
+  const sameDay = parts.every((p) => !p.r.date || !day || p.r.date.toDateString() === day.r.date.toDateString());
+  if (timedN >= 2 && !cue && day && !sameDay) listTitle = 'My plan';
+  else if (timedN >= 2 && !cue && day) listTitle = 'Plan for ' + dayLabel(day.r.date).toLowerCase().replace(/^(mon|tue|wed|thu|fri|sat|sun)/, (m) => m.charAt(0).toUpperCase() + m.slice(1));
+  return { def: timedN >= 2 && !cue ? 'reminders' : 'list', parts, listTitle, timedN };
+}
+function buildSplit(sp, mode) {
+  let last = null;
+  if (mode === 'reminders') return sp.parts.map((p) => { const r = p.r.found ? p.r : last; if (p.r.found) last = p.r; const it = { id: nextId++, kind: 'reminder', title: p.title, folder: '', when: r ? r.label : 'Today, 9:00 pm', repeat: (r && r.repeat) || '', order: r && r.date ? r.date.getHours() : 21 }; it.today = /^Today/.test(it.when); it._r = r; return it; });
+  const first = sp.parts.map((p) => p.r).filter((r) => r.date).sort((a, b) => a.date - b.date)[0];
+  const it = { id: nextId++, kind: 'todo', title: sp.listTitle, folder: '', by: 'You', when: first ? first.label : '', repeat: '', order: first ? first.date.getHours() : 22, steps: sp.parts.map((p) => ({ t: p.title + (p.timed && p.r.date ? ' · ' + fmtTime(p.r.date) : ''), d: false })) };
+  it.today = /^Today/.test(it.when); it._r = first; return [it];
+}
+function splitPreview(sp, mode, act) {
+  const n = sp.parts.length;
+  const rows = mode === 'reminders'
+    ? sp.parts.map((p) => `<div class="sp-row">${I.bell}<b>${esc(p.title)}</b><span>${p.r.found ? esc(p.r.label) : ''}</span></div>`).join('')
+    : `<div class="sp-row" style="font-weight:600">${I.todo}<b>${esc(sp.listTitle)}</b><span>${n} steps</span></div>` + sp.parts.map((p) => `<div class="sp-row sp-step"><i></i><b>${esc(p.title)}</b><span>${p.timed && p.r.date ? fmtTime(p.r.date) : ''}</span></div>`).join('');
+  return `<div class="sp-seg"><button class="press ${mode === 'reminders' ? 'on' : ''}" data-act="${act}" data-m="reminders">${n} reminders</button><button class="press ${mode === 'list' ? 'on' : ''}" data-act="${act}" data-m="list">1 to-do list</button></div><div class="sp-list">${rows}</div>`;
 }
 
 // ------------------------------------------------------------------ mic above the +: tap, speak, done
@@ -1723,7 +1807,7 @@ function voiceAdd() {
     const r = parseNL(st.value);
     let html = '', last = 0; for (const [a, b] of r.ranges) { html += esc(st.value.slice(last, a)) + '<mark>' + esc(st.value.slice(a, b)) + '</mark>'; last = b; } html += esc(st.value.slice(last));
     $('#vtext').innerHTML = html || '<span class="hint">I’m listening…</span>';
-    $('#vdet').innerHTML = detectChips(r);
+    const sp = splitTasks(st.value); st.sp = sp; $('#vdet').innerHTML = sp ? splitPreview(sp, st.mode || sp.def, 'v-mode') : detectChips(r); $('#vadd').textContent = sp ? ((st.mode || sp.def) === 'list' ? 'Add list' : `Add ${sp.parts.length}`) : 'Add';
     $('#vadd').disabled = !st.value.trim();
     const l = $('#vlil'); l.classList.remove('hear'); void l.offsetWidth; l.classList.add('hear');
   };
@@ -1737,7 +1821,7 @@ function voiceAdd() {
   const heard = () => { heardAny = true; upd(); clearTimeout(silT); silT = setTimeout(ready, 1600); };
   const demo = () => {
     if (fell || S.voice !== st) return; fell = true;
-    const phrases = ['call mom 9pm tomorrow', 'gym 7am every day', 'pay electricity bill on monday', 'water the plants weekdays 8am'];
+    const phrases = ['call mom 9pm tomorrow', 'tomorrow I want to go to the dairy at 7 am and school at 10', 'gym 7am every day', 'buy milk, eggs and bread', 'pay electricity bill on monday'];
     const p = phrases[(voiceAdd.n = ((voiceAdd.n || 0) + 1)) % phrases.length];
     let k = 0;
     const words = p.split(' ');
@@ -1762,9 +1846,9 @@ function stopVoice(cancel) {
   if (cancel) S.voice = null;
 }
 function commitVoice() {
-  const v = S.voice && S.voice.value; stopVoice(false);
+  const st = S.voice, v = st && st.value; stopVoice(false);
   S.voice = null;
-  if (v) addFromText(v, $('#micfab'));
+  if (v) addFromText(v, $('#micfab'), st.sp ? (st.mode || st.sp.def) : null);
 }
 
 // ------------------------------------------------------------------ Lil: streak, hearts, levels, outfits
