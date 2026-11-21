@@ -692,6 +692,40 @@ h1.page.in{animation:titleIn .8s var(--ease) both;animation-delay:calc(var(--i,0
 .qh input{border:0;outline:0;background:none;color:var(--ink);font:inherit;font-size:22px;font-weight:600;color-scheme:dark light;width:100%}
 [data-dir=daylight] .qh input{color-scheme:light}
 [data-dir=midnight] .qh input{color-scheme:dark}
+/* v12: full-screen reminder, smoother bar morph */
+.sheet.mo{backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none;background:var(--card)}
+[data-dir=midnight] .sheet.mo{background:#16161A}
+[data-dir=daylight] .sheet.mo{background:#FAF8F5}
+.ring{position:absolute;inset:0;z-index:38;display:none;flex-direction:column;align-items:stretch;padding:64px 20px 26px;background:radial-gradient(90% 55% at 50% 30%,var(--blue-soft),transparent 70%),var(--bg);overflow-y:auto;scrollbar-width:none}
+.ring.show{display:flex}
+.rg-x{z-index:3;position:absolute;top:52px;left:16px;width:40px;height:40px}
+.rg-clock{text-align:center}
+.rg-clock b{font-size:44px;font-weight:600;letter-spacing:-.04em;line-height:1}
+.rg-clock span{font-size:17px;font-weight:500;color:var(--ink2);margin-left:4px}
+.rg-clock p{font-size:13px;color:var(--ink2);margin-top:6px}
+.rg-mid{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:240px}
+.rg-lil.hop svg{animation:hop .6s var(--spring)}
+.rg-q{margin-top:4px;padding:10px 18px;border-radius:20px;background:var(--ink);color:var(--paper);font-size:17px;font-weight:600;position:relative}
+.rg-q::before{content:'';position:absolute;top:-6px;left:50%;width:14px;height:14px;background:inherit;transform:translateX(-50%) rotate(45deg);border-radius:3px}
+.rg-card{display:flex;align-items:center;gap:12px;padding:12px;border-radius:24px;background:var(--card)}
+.rg-card img{width:56px;height:56px;border-radius:14px;object-fit:cover;flex:none}
+.rg-ct{flex:1;min-width:0}
+.rg-ct b{display:block;font-size:17px;font-weight:600;line-height:1.3}
+.rg-ct span{font-size:13px;color:var(--ink2)}
+.rg-steps{display:flex;flex-direction:column;gap:2px;margin-top:8px;background:var(--card);border-radius:20px;padding:6px}
+.rg-step{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 10px;text-align:left;font-size:15px}
+.rg-step i{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--ink3);display:grid;place-items:center;flex:none}
+.rg-step.on i{background:var(--blue);border-color:var(--blue);color:#17130F}
+.rg-step.on i svg{width:13px;height:13px}
+.rg-step.on span{text-decoration:line-through;color:var(--ink3)}
+.rg-did{flex:none!important;margin-top:14px;height:58px;width:100%;justify-content:center;font-size:17px}
+.rg-did small{margin-left:8px;font-size:13px;font-weight:600;opacity:.6}
+.rg-did.ok{background:var(--blue)!important;color:#17130F!important}
+.rg-snz{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.rg-snz button{height:46px;border-radius:16px;background:var(--card);font-size:15px;font-weight:500}
+.ring.show .rg-in{animation:rise .45s var(--ease) both;animation-delay:calc(var(--d) * 50ms + 120ms)}
+.pu-body{position:relative}
+.pu-body::after{content:'Tap to open';position:absolute;right:0;top:0;font-size:11px;color:var(--ink3);font-weight:500}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
@@ -736,6 +770,7 @@ h1.page.in{animation:titleIn .8s var(--ease) both;animation-delay:calc(var(--i,0
     <div class="lilv" id="lilv" role="dialog" aria-label="Your buddy"></div>
     <div class="streakv" id="streakv" role="dialog" aria-label="Streak"></div>
     <div class="push" id="push" role="status"></div>
+    <div class="ring" id="ring" role="dialog" aria-label="Reminder"></div>
     <div class="share" id="share">
       <div class="reel"></div>
       <div class="reel-ui"><i></i>chef.anya · Reels</div>
@@ -1399,9 +1434,9 @@ function morphOpen(bar) {
   const sh = $('#sheet'); sh.classList.add('show');
   const u = sh.querySelector('#url'); if (u) u.focus({ preventScroll: true });
   const g = morphGeom(sh, bar);
-  bar.style.opacity = '0';
+  bar.style.opacity = '0'; sh.classList.add('mo'); setTimeout(() => sh.classList.remove('mo'), 440);
   sh.animate([g.from, g.to], { duration: 420, easing: 'cubic-bezier(.2,.85,.25,1)' });
-  sh.querySelectorAll('.grab, .modeseg, .field ~ *, h3, .chips, .tiles, .wmic, .save-row, .field:not(:has(#url))').forEach((el) => { if (el === g.fEl) return; el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, delay: 150, easing: 'ease-out', fill: 'backwards' }); });
+  sh.querySelectorAll('.grab, .modeseg, .field ~ *, h3, .chips, .tiles, .wmic, .save-row, .field:not(:has(#url)), :scope > .chip').forEach((el) => { if (el === g.fEl) return; el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, delay: 150, easing: 'ease-out', fill: 'backwards' }); });
   requestAnimationFrame(() => sh.classList.remove('morphing'));
   buzz(8);
 }
@@ -1411,9 +1446,65 @@ function morphClose() {
   document.activeElement && document.activeElement.blur && document.activeElement.blur();
   if (!bar || current() !== 'today' || S.draft?.mode !== 'link' || !sh.querySelector('#url')) { sh.classList.remove('show', 'frombar'); if (bar) bar.style.opacity = ''; return; }
   const g = morphGeom(sh, bar);
-  sh.querySelectorAll('.grab, .modeseg, h3, .chips, .tiles, .wmic, .save-row').forEach((el) => el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: 'forwards' }));
-  const a = sh.animate([g.to, g.from], { duration: 320, easing: 'cubic-bezier(.4,0,.2,1)' });
-  a.onfinish = () => { bar.style.opacity = ''; sh.classList.add('morphing'); sh.classList.remove('show', 'frombar'); sh.getAnimations({ subtree: true }).forEach((x) => x.cancel()); requestAnimationFrame(() => requestAnimationFrame(() => sh.classList.remove('morphing'))); };
+  sh.classList.add('mo');
+  const others = [...sh.querySelectorAll('.grab, .modeseg, h3, .chips, .tiles, .wmic, .save-row, .field:not(:has(#url)), :scope > .chip')];
+  others.forEach((el) => el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(8px)' }], { duration: 150, easing: 'ease-in', fill: 'forwards' }));
+  const a = sh.animate([g.to, g.from], { duration: 360, delay: 40, easing: 'cubic-bezier(.32,0,.15,1)', fill: 'forwards' });
+  const bf = bar.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 110, delay: 300, fill: 'forwards' });
+  a.onfinish = () => {
+    sh.classList.add('morphing'); sh.classList.remove('show', 'frombar', 'mo');
+    bar.style.opacity = '';
+    requestAnimationFrame(() => { sh.getAnimations({ subtree: true }).forEach((x) => x.cancel()); bf.cancel(); requestAnimationFrame(() => sh.classList.remove('morphing')); });
+  };
+}
+
+// ------------------------------------------------------------------ full-screen reminder (tap a notification)
+function ringOpen(id, fromEl) {
+  const it = byId(id); if (!it) return;
+  const from = fromEl ? fromEl.getBoundingClientRect() : null;
+  hidePush(); closeSheet();
+  const link = it.kind === 'link';
+  const q = it.kind === 'todo' ? 'Done with this?' : !link ? 'Did you do it?' : /youtu|vimeo|reel|tiktok|instagram/.test(it.domain || '') ? 'Did you watch this?' : 'Did you read this?';
+  const DOW = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], MON = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const [tm, ap] = fmtTime(NOW).split(' ');
+  const grp = isGroup(it) ? S.folders.find((f) => f.name === it.folder) : null;
+  const sub = link ? (it.domain || '') : grp ? `${it.by || 'Aman'} · ${grp.name}` : it.folder || (it.kind === 'todo' ? 'To-do' : 'Reminder');
+  const steps = it.steps && it.steps.length ? `<div class="rg-steps">${it.steps.map((s, i) => `<button class="rg-step press ${s.d ? 'on' : ''}" data-act="rg-step" data-id="${it.id}" data-i="${i}"><i>${s.d ? I.check : ''}</i><span>${esc(s.t)}</span></button>`).join('')}</div>` : '';
+  const r = $('#ring');
+  r.innerHTML = `<button class="circ press rg-x" data-act="rg-close" aria-label="Close">${II.x}</button>
+    <div class="rg-clock rg-in" style="--d:0"><b>${tm}</b><span>${ap}</span><p>${DOW[NOW.getDay()]}, ${NOW.getDate()} ${MON[NOW.getMonth()]}</p></div>
+    <div class="rg-mid">
+      <div class="rg-lil rg-in" style="--d:1" id="rgLil">${lil('happy', 170)}</div>
+      <div class="rg-q rg-in" style="--d:2">${q}</div>
+    </div>
+    <div class="rg-card rg-in" style="--d:3">
+      ${it.img ? `<img src="${it.img}" alt="">` : `<span class="tico" style="width:48px;height:48px;border-radius:15px">${it.kind === 'todo' ? I.todo : I.bell}</span>`}
+      <div class="rg-ct"><b>${esc(it.title)}</b><span>${esc(sub)}</span></div>
+      ${link ? `<button class="circ press" data-act="open" data-id="${it.id}" aria-label="Open" style="width:44px;height:44px">${I.ext}</button>` : ''}
+    </div>
+    ${steps}
+    <button class="btn-done press rg-in rg-did" style="--d:4" data-act="rg-done" data-id="${it.id}">${I.check}<span class="lab">${link ? 'Done, I saw it' : 'I did it'}</span><small>+15</small></button>
+    <div class="rg-snz rg-in" style="--d:5">${[['15', 'In 15 min'], ['60', 'In 1 hour'], ['tonight', 'Tonight']].map(([k, l]) => `<button class="press" data-act="rg-snooze" data-id="${it.id}" data-k="${k}">${l}</button>`).join('')}</div>`;
+  r.classList.add('show'); r.dataset.id = it.id; $('#dock').classList.add('hide');
+  const rect = r.getBoundingClientRect();
+  if (from) r.animate([{ clipPath: `inset(${from.top - rect.top}px ${rect.right - from.right}px ${rect.bottom - from.bottom}px ${from.left - rect.left}px round 26px)` }, { clipPath: 'inset(0px 0px 0px 0px round 0px)' }], { duration: 460, easing: 'cubic-bezier(.2,.85,.25,1)' });
+  else r.animate([{ opacity: 0, transform: 'scale(1.04)' }, { opacity: 1, transform: 'none' }], { duration: 320, easing: 'ease-out' });
+  setTimeout(() => { const l = $('#rgLil'); if (l) { l.classList.add('hop'); } }, 420);
+  buzz([30, 60, 30]);
+}
+function ringClose() { const r = $('#ring'); if (!r.classList.contains('show')) return; r.animate([{ opacity: 1 }, { opacity: 0, transform: 'scale(.98)' }], { duration: 200, easing: 'ease-in' }).onfinish = () => { r.classList.remove('show'); r.innerHTML = ''; }; $('#dock').classList.remove('hide'); }
+function ringDone(id, btn) {
+  const b = btn.getBoundingClientRect(); sparks(b.left + b.width / 2, b.top + b.height / 2, 14);
+  btn.classList.add('ok'); btn.querySelector('.lab').textContent = 'Yay, you did it!';
+  const l = $('#rgLil'); if (l) { l.innerHTML = lil('happy', 170); l.classList.remove('hop'); void l.offsetWidth; l.classList.add('hop'); }
+  setTimeout(() => { ringClose(); const it = byId(id); if (it && !it.done) markDone(id); toast(`“${it.title.slice(0, 24)}${it.title.length > 24 ? '…' : ''}” done`); }, 650);
+}
+function ringSnooze(id, k) {
+  const it = byId(id); if (!it) return;
+  const r = parseNL(k === 'tonight' ? 'tonight' : `in ${k} min`);
+  it.when = r.label; it.today = /^Today/.test(it.when); it.later = false; it.order = r.date.getHours();
+  maybeSchedule(it, r); ringClose(); render(false);
+  toast(`${S.lil.name} will ask again at ${fmtTime(r.date)}`);
 }
 
 // ------------------------------------------------------------------ quiet hours, sound
@@ -1595,6 +1686,13 @@ document.addEventListener('click', (e) => {
     case 'notes-read': S.notes.forEach((n) => (n.unread = false)); notesSheet(); render(false); break;
     case 'push-done': hidePush(); markDone(id); break;
     case 'push-later': hidePush(); markLater(id); break;
+    case 'push-snooze': hidePush(); ringSnooze(id, '15'); break;
+    case 'ring': ringOpen(id, $('#push')); break;
+    case 'note-open': closeSheet(); setTimeout(() => ringOpen(id), 200); break;
+    case 'rg-close': ringClose(); break;
+    case 'rg-done': ringDone(id, t); break;
+    case 'rg-snooze': ringSnooze(id, t.dataset.k); break;
+    case 'rg-step': { const it = byId(id); const st = it.steps[+t.dataset.i]; st.d = !st.d; t.classList.toggle('on', st.d); t.querySelector('i').innerHTML = st.d ? I.check : ''; buzz(8); persist(); break; }
     case 'test-notif': toast('Arriving in 3 seconds…'); setTimeout(() => pushNotif(queue()[0] || S.items.find((i) => !i.done)), 3000); break;
     case 'streak-ok': closeStreak(); break;
     case 'streak-lil': closeStreak(); openLil(); break;
@@ -2257,7 +2355,7 @@ function saveName(who) {
 function notesSheet() {
   const ic = { bell: I.bell, snow: II.snow, heart: II.heart(16), spark: I.star, folder: I.users };
   openSheet(`<div style="display:flex;justify-content:space-between;align-items:center;margin:0 4px 12px"><p style="font-size:22px;font-weight:600">Notifications</p>${S.notes.some((n) => n.unread) ? '<button class="meta press" data-act="notes-read" style="color:var(--blue-ink)">Mark all read</button>' : ''}</div>
-    ${S.notes.length ? `<div class="list" style="margin:0">${S.notes.map((n) => `<div class="row nrow ${n.unread ? 'unread' : ''}"><span class="tico" style="width:40px;height:40px;border-radius:12px">${ic[n.ic] || I.bell}</span><span class="grow" style="font-size:15px;font-weight:500;line-height:1.35">${esc(n.t)}<span class="meta" style="display:block;margin-top:3px">${n.ago}</span></span>${n.unread ? '<i class="ndot"></i>' : ''}</div>`).join('')}</div>` : `<div style="display:grid;place-items:center;padding:20px 0">${lil('sleepy', 100)}<p class="sub">Nothing new. ${esc(S.lil.name)} is napping.</p></div>`}
+    ${S.notes.length ? `<div class="list" style="margin:0">${S.notes.map((n) => `<div class="row nrow ${n.unread ? 'unread' : ''}" ${n.id && byId(n.id) && !byId(n.id).done ? `data-act="note-open" data-id="${n.id}" style="cursor:pointer"` : ''}><span class="tico" style="width:40px;height:40px;border-radius:12px">${ic[n.ic] || I.bell}</span><span class="grow" style="font-size:15px;font-weight:500;line-height:1.35">${esc(n.t)}<span class="meta" style="display:block;margin-top:3px">${n.ago}</span></span>${n.unread ? '<i class="ndot"></i>' : ''}</div>`).join('')}</div>` : `<div style="display:grid;place-items:center;padding:20px 0">${lil('sleepy', 100)}<p class="sub">Nothing new. ${esc(S.lil.name)} is napping.</p></div>`}
     <div class="save-row"><button class="btn-blue press" data-act="close-sheet">Close</button></div>`);
 }
 let PT;
@@ -2267,8 +2365,8 @@ function pushNotif(it, grp) {
   if (grp && grp.muted) { note(`“${it.title}” in ${grp.name} (muted)`, 'folder', it.id); render(false); return; }
   const p = $('#push');
   p.innerHTML = `<div class="pu-head">${mark(0, 20)}<span>${grp ? 'Little Later · ' + esc(grp.name) : 'Little Later'}</span><span style="margin-left:auto">now</span></div>
-    <div class="pu-body" data-act="actions" data-id="${it.id}"><b>${esc(it.title)}</b><span>${grp ? esc(it.by || 'Aman') + ' set this for the group · ' + esc((it.when || '').replace(/^Today, /, '')) : it.kind === 'link' ? 'Saved for ' + (it.when || 'now').replace(/^Today, /, '') + ' · ' + (it.domain || '') : esc(S.lil.name) + ' is reminding you · ' + (it.when || '').replace(/^Today, /, '')}</span></div>
-    <div class="pu-acts"><button class="press" data-act="push-done" data-id="${it.id}">Done</button><button class="press" data-act="push-later" data-id="${it.id}">Tomorrow</button></div>`;
+    <div class="pu-body" data-act="ring" data-id="${it.id}"><b>${esc(it.title)}</b><span>${grp ? esc(it.by || 'Aman') + ' set this for the group · ' + esc((it.when || '').replace(/^Today, /, '')) : it.kind === 'link' ? 'Saved for ' + (it.when || 'now').replace(/^Today, /, '') + ' · ' + (it.domain || '') : esc(S.lil.name) + ' is reminding you · ' + (it.when || '').replace(/^Today, /, '')}</span></div>
+    <div class="pu-acts"><button class="press" data-act="push-done" data-id="${it.id}">Done</button><button class="press" data-act="push-snooze" data-id="${it.id}">In 15 min</button></div>`;
   p.classList.remove('show'); void p.offsetWidth; p.classList.add('show');
   note(grp ? `${it.by || 'Aman'} in ${grp.name}: “${it.title}”` : `“${it.title}” is due now`, grp ? 'folder' : 'bell', it.id);
   if (inQuiet()) { toast('Arrived silently · quiet hours'); } else { chime(S.tone, true); buzz(S.vibe ? [200, 80, 200, 80, 400] : 20); }
@@ -2327,7 +2425,7 @@ function renderBrand() {
 }
 
 window.addEventListener('resize', () => render(false));
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeSheet(); $('#brand').classList.remove('show'); if ($('#lilv').classList.contains('show')) closeLil(); closeStreak(); } });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeSheet(); $('#brand').classList.remove('show'); if ($('#lilv').classList.contains('show')) closeLil(); closeStreak(); ringClose(); } });
 { const h = location.hash.slice(1); if (LOOKS[h]) S.dir = h; document.documentElement.dataset.dir = S.dir; }
 $('#sidemark') && ($('#sidemark').innerHTML = mark(0, 64));
 screen.addEventListener('scroll', () => { if (screen.scrollTop) screen.scrollTop = 0; });
