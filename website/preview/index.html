@@ -241,6 +241,9 @@ h1.page.in{animation:titleIn .8s var(--ease) both;animation-delay:calc(var(--i,0
 .scrim.show{opacity:1;pointer-events:auto;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
 .sheet{position:absolute;left:8px;right:8px;bottom:8px;max-height:calc(100% - 60px);overflow-y:auto;scrollbar-width:none;background:var(--sheet);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-radius:36px;padding:10px 16px 18px;z-index:21;transform:translateY(110%);transition:transform .34s var(--ease);box-shadow:0 -10px 40px -10px rgba(0,0,0,.35)}
 .sheet.show{transform:none}
+.sheet.qsheet{transition:transform .22s cubic-bezier(.2,.9,.3,1)}
+.scrim.lite.show{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(0,0,0,.22)}
+.reel{filter:blur(6px)!important}
 .sheet.go{animation:shrinkTick .38s var(--ease) forwards}
 .grab{cursor:pointer;width:36px;height:5px;border-radius:3px;background:var(--ink3);opacity:.35;margin:0 auto 14px}
 .sheet h3{font-size:13px;font-weight:600;color:var(--ink2);margin:16px 2px 8px}
@@ -283,7 +286,7 @@ h1.page.in{animation:titleIn .8s var(--ease) both;animation-delay:calc(var(--i,0
 .edge .ring{position:absolute;inset:0;border-radius:44px;padding:5px;filter:drop-shadow(0 0 10px rgba(110,149,255,.9));background:linear-gradient(160deg,#6E95FF,#43D6C4 45%,#C8F06A 70%,#6E95FF);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:hue 6s linear infinite}
 .edge .inner{position:absolute;inset:0;border-radius:44px;box-shadow:inset 0 0 50px 10px rgba(110,149,255,.75),inset 0 0 120px 20px rgba(67,214,196,.35);animation:hue 6s linear infinite}
 @media (max-width:860px){.edge .ring,.edge .inner{border-radius:0}}
-.share-btn{position:absolute;left:50%;bottom:110px;transform:translateX(-50%);height:48px;padding:0 20px;border-radius:99px;background:rgba(255,255,255,.95);color:#16161A;font-weight:600;font-size:15px;display:flex;align-items:center;gap:8px;z-index:32;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+.share-btn{white-space:nowrap;position:absolute;left:50%;bottom:110px;transform:translateX(-50%);height:48px;padding:0 20px;border-radius:99px;background:rgba(255,255,255,.95);color:#16161A;font-weight:600;font-size:15px;display:flex;align-items:center;gap:8px;z-index:32;box-shadow:0 10px 30px rgba(0,0,0,.3)}
 
 /* done overlay */
 .donev{position:absolute;inset:0;z-index:25;background:var(--bg);display:none;flex-direction:column;align-items:center;padding:110px 24px 0}
@@ -726,7 +729,6 @@ h1.page.in{animation:titleIn .8s var(--ease) both;animation-delay:calc(var(--i,0
       <div class="reel-ui"><i></i>chef.anya · Reels</div>
       <div class="reel-side"><span></span><span></span><span></span></div>
       <button class="share-btn press" data-act="share-open" id="shareBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>Share → Little Later</button>
-      <div class="edge"><div class="ring"></div><div class="inner"></div></div>
     </div>
     <div class="toast" id="toast"><span id="toastText"></span><button id="toastUndo">Undo</button></div>
   </div></div>
@@ -1282,6 +1284,7 @@ function pull(v) {
 // ------------------------------------------------------------------ sheets
 function openSheet(html, cls = '') {
   const sh = $('#sheet');
+  if (!/qsheet/.test(cls)) $('#scrim').classList.remove('lite');
   sh.className = 'sheet ' + cls;
   sh.innerHTML = '<div class="grab" data-act="close-sheet"></div>' + html;
   $('#scrim').classList.add('show');
@@ -1355,6 +1358,15 @@ function bindSheetInputs() {
   const s = sh.querySelector('#stepin');
   if (s) s.addEventListener('keydown', (e) => { if (e.key === 'Enter' && s.value.trim()) { S.draft.steps.push(s.value.trim()); refreshSheet(); $('#stepin').focus(); } });
 }
+function openLinkSheet(u, rest) {
+  newDraft(false); const d = S.draft;
+  const url = u.startsWith('http') ? u : 'https://' + u;
+  let host = 'link'; try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (e) {}
+  const guess = /youtu/.test(host) ? ['Design systems talk', 'd6'] : /instagram/.test(host) ? ['One-pan lemon garlic chicken', 'd4'] : /pinterest/.test(host) ? ['Anniversary gift ideas', 'd2'] : ['Saved from ' + host, 'd11'];
+  Object.assign(d, { mode: 'link', url, domain: host, title: guess[0], img: C(guess[1]), folder: '' });
+  if (rest) { const r = parseNL(rest); if (r.found) d.wnl = r; if (!r.found || r.title) d.note = r.found ? r.title : rest; }
+  openSheet(saveSheet()); bindSheetInputs(); buzz(10);
+}
 function fakeFetch(url) {
   const d = S.draft;
   let host = 'link'; try { host = new URL(url.startsWith('http') ? url : 'https://' + url).hostname.replace(/^www\./, ''); } catch (e) {}
@@ -1378,7 +1390,7 @@ function save() {
   buzz([10, 40, 14]);
   setTimeout(() => {
     closeSheet(); sh.classList.remove('go');
-    if (d.shared) { const s = $('#share'); s.classList.add('fadeedge'); setTimeout(() => { s.classList.remove('show', 'fadeedge'); }, 520); }
+    if (d.shared) { const s = $('#share'); s.classList.remove('show'); $('#scrim').classList.remove('lite'); }
     render(false);
     toast(`Saved to ${it.folder || 'Saved'}${it.when ? ' · ' + it.when.replace('Today, ', 'today ') : ''}${it.repeat ? ' · ' + it.repeat.toLowerCase() : ''}`);
   }, 360);
@@ -1448,10 +1460,10 @@ document.addEventListener('click', (e) => {
     case 'rep': { const v = JSON.parse(t.dataset.v); if (v === 'pick') { S.draft.pick = true; if (!S.draft.repeat.length || S.draft.repeat.length === 7) S.draft.repeat = [5]; } else { S.draft.pick = false; S.draft.repeat = v; } buzz(); refreshSheet(); break; }
     case 'rday': { const i = +t.dataset.i, r = S.draft.repeat; const k = r.indexOf(i); if (k >= 0 && r.length > 1) r.splice(k, 1); else if (k < 0) r.push(i); r.sort(); buzz(); refreshSheet(); break; }
     case 'save': save(); break;
-    case 'close-sheet': if ($('#voice').classList.contains('show')) { stopVoice(true); break; } closeSheet(); if ($('#share').classList.contains('show') && S.draft?.shared) { const s = $('#share'); s.classList.add('fadeedge'); setTimeout(() => s.classList.remove('show', 'fadeedge'), 500); } break;
+    case 'close-sheet': if ($('#voice').classList.contains('show')) { stopVoice(true); break; } closeSheet(); if ($('#share').classList.contains('show') && S.draft?.shared) { const s = $('#share'); s.classList.remove('show'); $('#scrim').classList.remove('lite'); } break;
     case 'reset-demo': try { localStorage.removeItem(STORE); } catch (e) {} location.reload(); break;
     case 'share-demo': $('#share').classList.add('show'); $('#shareBtn').classList.remove('hidden'); closeSheet(); break;
-    case 'share-open': $('#shareBtn').classList.add('hidden'); newDraft(true); setTimeout(() => { openSheet(saveSheet()); bindSheetInputs(); }, 180); buzz(10); break;
+    case 'share-open': $('#shareBtn').classList.add('hidden'); newDraft(true); openSheet(saveSheet(), 'qsheet'); $('#scrim').classList.add('lite'); bindSheetInputs(); buzz(10); break;
     case 'close-done': $('#donev').classList.remove('show'); render(true); break;
     case 'reset-day': S.items.forEach((i) => { if ([1, 2, 3].includes(i.id)) { i.done = false; i.later = false; i.today = true; } }); i1when(); S.doneToday = 0; $('#donev').classList.remove('show'); S.tab = 'today'; render(true); break;
     case 'look': setLook(t.dataset.look); buzz(); break;
@@ -1788,10 +1800,10 @@ function wireSavebar() {
     const r = isUrl ? { found: false, ranges: [] } : parseNL(v);
     paintMirror(inp, mir, r); go.disabled = !v.trim();
     const sp = isUrl ? null : splitTasks(v); S.barSplit = sp; if (!sp) S.barMode = null;
-    det.innerHTML = isUrl ? `<span>${I.link}<b>Link</b> · saves to Saved</span>` : sp ? splitPreview(sp, S.barMode || sp.def, 'bar-mode') : detectChips(r);
+    det.innerHTML = isUrl ? `<span>${I.link}<b>Link</b> · tap ↑ to pick a folder and time</span>` : sp ? splitPreview(sp, S.barMode || sp.def, 'bar-mode') : detectChips(r);
   };
   inp.addEventListener('input', upd); inp.addEventListener('scroll', upd);
-  $('.view:not(.leaving) #savebar').addEventListener('submit', (e) => { e.preventDefault(); const m = S.barSplit ? (S.barMode || S.barSplit.def) : null; addFromText(inp.value, null, m); S.barMode = null; S.barSplit = null; });
+  $('.view:not(.leaving) #savebar').addEventListener('submit', (e) => { e.preventDefault(); const um = inp.value.match(/(https?:\/\/\S+|www\.\S+\.\S+)/); if (um) { openLinkSheet(um[0], inp.value.replace(um[0], '').trim()); inp.value = ''; upd(); return; } const m = S.barSplit ? (S.barMode || S.barSplit.def) : null; addFromText(inp.value, null, m); S.barMode = null; S.barSplit = null; });
   const ph = $('.view:not(.leaving) #sphoto');
   ph.addEventListener('change', () => { const f = ph.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => { newDraft(false); S.draft.mode = 'reminder'; S.draft.folder = ''; S.draft.img = rd.result; S.draft.title = inp.value; openSheet(saveSheet()); bindSheetInputs(); }; rd.readAsDataURL(f); });
 }
