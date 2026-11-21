@@ -643,6 +643,40 @@ h1.page.in{animation:titleIn .8s var(--ease) both;animation-delay:calc(var(--i,0
 .sb-detect:has(.sp-seg){flex-direction:column;flex-wrap:nowrap;background:var(--card2,transparent)}
 .vdet:has(.sp-seg){flex-direction:column;flex-wrap:nowrap}
 .vdet .sp-row{background:var(--chipbg)}
+/* v9: links first, voice edit, hindi, groups */
+.sec-h{display:flex;justify-content:space-between;align-items:baseline;margin:26px 20px 0}
+.sec-h .h3{margin:0}
+.lrail{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none;padding:10px 16px 4px;scroll-snap-type:x mandatory;scroll-padding:0 16px}
+.lrail::-webkit-scrollbar{display:none}
+.lcard{flex:none;width:148px;scroll-snap-align:start;text-align:left;display:flex;flex-direction:column;gap:3px}
+.lcard img{width:148px;height:104px;object-fit:cover;border-radius:18px;margin-bottom:6px}
+.lcard b{font-size:15px;font-weight:600;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.lcard span{font-size:13px;color:var(--ink2)}
+.lcard span.due{color:var(--blue-ink)}
+.rlist{margin:8px 16px 0;background:var(--card);border-radius:20px;padding:4px 0}
+.rrow{display:flex;align-items:center;gap:12px;width:100%;min-height:46px;padding:0 16px;text-align:left}
+.rrow+.rrow{border-top:1px solid var(--line)}
+.rt{font-size:13px;font-weight:600;width:62px;flex:none;font-variant-numeric:tabular-nums}
+.rti{flex:1;min-width:0;font-size:15px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rd{font-size:13px;color:var(--ink2);flex:none}
+.gnote{display:flex;align-items:center;gap:8px;margin:14px 22px 0;font-size:13px;color:var(--ink2)}
+.gnote svg{width:15px;height:15px;opacity:.7;flex:none}
+.vlang{position:absolute;top:16px;right:16px;height:34px;padding:0 12px;border-radius:99px;background:var(--chipbg);font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.vlang small{font-size:11px;font-weight:500;color:var(--ink2)}
+.vtext{cursor:text}
+.vpen{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--chipbg);vertical-align:middle;margin-left:6px;opacity:.75}
+.vpen svg{width:13px;height:13px}
+.vta{display:block;width:100%;resize:none;border:0;outline:0;background:var(--chipbg);border-radius:18px;padding:12px 14px;color:var(--ink);font:inherit;font-size:22px;font-weight:600;letter-spacing:-.015em;text-align:center;line-height:1.35;min-height:60px}
+.sp-link{display:flex;align-items:center;gap:12px;width:100%;padding:10px;border-radius:18px;background:var(--chipbg);text-align:left}
+.sp-link img{width:56px;height:56px;border-radius:12px;object-fit:cover;flex:none}
+.sp-link b{display:block;font-size:15px;font-weight:600}
+.sp-link span{display:inline-flex!important;align-items:center;gap:5px;font-size:13px;color:var(--blue-ink);font-weight:500;margin-top:3px;background:none!important;height:auto!important;padding:0!important}
+.sp-link span svg{width:13px;height:13px}
+.wmic{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:0 14px;border-radius:16px;background:var(--chipbg);font-size:13px;color:var(--ink2);text-align:left;margin:8px 0 10px}
+.wmic svg{width:18px;height:18px;color:var(--ink);flex:none}
+.wmic b{color:var(--blue-ink);font-weight:600}
+.wmic.on{outline:1.5px solid var(--blue);outline-offset:-1.5px}
+.wmic.on svg{color:var(--blue);animation:earPerk 1s infinite}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
@@ -659,6 +693,7 @@ h1.page.in{animation:titleIn .8s var(--ease) both;animation-delay:calc(var(--i,0
     <ol>
       <li><span><b>Type or paste</b> in the bar on Today: “call mom 9pm tomorrow” or any link. The time lights up as you type.</span></li>
       <li><span>Tap the <b>mic</b> above the + and just say it. Lil listens, then adds it. Say a few things at once (“dairy at 7 am and school at 10”) and pick reminders or one to-do list.</span></li>
+      <li><span>Voice speaks <b>Hindi</b> too (tap EN to switch): “kal dopahar 12 baje doodh lana hai”. Tap the words to fix them.</span></li>
       <li><span>Tap the <b>flame</b> for your streak, hearts, outfits and Lil’s name.</span></li>
       <li><span>Tap <b>Done</b> on the big card, or the clock for <b>Later</b> (same time tomorrow).</span></li>
       <li><span>Tap any reminder for its <b>details</b>: Done, Edit, Share, Delete.</span></li>
@@ -810,16 +845,18 @@ const S = {
   ],
   draft: null,
   me: { name: 'Harsh', email: 'harsh@example.com' },
+  vlang: 'en-IN',
   lil: { name: 'Lil', xp: 240, hearts: 5, freezes: 2, collected: [3, 5], outfit: 0, owned: [0], last: '' },
   notes: [
     { t: '“Anniversary gift ideas” is due at 6:30 pm', ic: 'bell', ago: '5 min ago', unread: true },
+    { t: 'Aman set a reminder in Goa trip: “Book train tickets” · Thu 9:00 pm', ic: 'folder', ago: '40 min ago', unread: true },
     { t: 'Riya added 2 saves to Goa trip', ic: 'folder', ago: '1 h ago', unread: true },
     { t: 'Lil grew to Growing size', ic: 'spark', ago: 'Yesterday' },
   ],
 };
 let nextId = 100;
 // keep your changes between visits (this browser only)
-const STORE = 'littlelater-preview-v1', KEEP = ['me', 'lil', 'notes', 'items', 'folders', 'chat', 'view', 'dir', 'tone', 'vibe', 'quiet', 'streak', 'doneToday', 'logo', 'word'];
+const STORE = 'littlelater-preview-v1', KEEP = ['vlang', 'me', 'lil', 'notes', 'items', 'folders', 'chat', 'view', 'dir', 'tone', 'vibe', 'quiet', 'streak', 'doneToday', 'logo', 'word'];
 try {
   if (/[?&]reset/.test(location.search)) localStorage.removeItem(STORE);
   const saved = JSON.parse(localStorage.getItem(STORE) || 'null');
@@ -829,7 +866,9 @@ let saveT = 0;
 const persist = () => { clearTimeout(saveT); saveT = setTimeout(() => { try { const o = {}; KEEP.forEach((k) => (o[k] = S[k])); localStorage.setItem(STORE, JSON.stringify(o)); } catch (e) {} }, 250); };
 window.addEventListener('pagehide', () => { try { const o = {}; KEEP.forEach((k) => (o[k] = S[k])); localStorage.setItem(STORE, JSON.stringify(o)); } catch (e) {} });
 const byId = (id) => S.items.find((i) => i.id === id);
-const queue = () => S.items.filter((i) => i.today && !i.done && !i.later).sort((a, b) => a.order - b.order);
+const isGroup = (i) => !!i.folder && !!(S.folders.find((f) => f.name === i.folder) || {}).shared;
+const RANK = { link: 0, todo: 1, reminder: 2 };
+const queue = () => S.items.filter((i) => i.today && !i.done && !i.later && !isGroup(i)).sort((a, b) => RANK[a.kind] - RANK[b.kind] || a.order - b.order);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 // ------------------------------------------------------------------ helpers
@@ -861,8 +900,8 @@ function today() {
   const vids = q.filter((i) => i.kind === 'link').length, rem = q.filter((i) => i.kind === 'reminder').length, tds = q.filter((i) => i.kind === 'todo').length;
   const parts = [];
   if (vids) parts.push(`<b><span class="num">${vids}</span> ${vids === 1 ? 'link' : 'links'}</b>`);
-  if (rem) parts.push(`<b><span class="num">${rem}</span> ${rem === 1 ? 'reminder' : 'reminders'}</b>`);
   if (tds) parts.push(`<b><span class="num">${tds}</span> ${tds === 1 ? 'to-do' : 'to-dos'}</b>`);
+  if (rem) parts.push(`<b><span class="num">${rem}</span> ${rem === 1 ? 'reminder' : 'reminders'}</b>`);
   const joined = parts.length > 1 ? parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1] : parts[0];
   const sentence = q.length
     ? `Good evening, ${esc(S.me.name)}. <b><span class="num">${q.length}</span> ${q.length === 1 ? 'thing is' : 'things are'}</b> waiting: ${joined}. You’re free after <b>6 pm</b>.`
@@ -895,8 +934,18 @@ function today() {
       </article></div>`;
   }
   S.promote = false;
-  const tomorrow = S.items.filter((i) => !i.today && !i.done && /Tomorrow/.test(i.when));
-  const list = tomorrow.length ? `<div class="later-list in" style="--i:5;margin-top:8px">${tomorrow.map((x) => row(x)).join('')}</div>` : '';
+  const hero = q[0];
+  const mineAll = S.items.filter((i) => !i.done && !isGroup(i) && i !== hero);
+  const wsort = (a, b) => (a.when ? 0 : 1) - (b.when ? 0 : 1) || (/^Today/.test(b.when) ? 1 : 0) - (/^Today/.test(a.when) ? 1 : 0) || (/^Tomorrow/.test(b.when) ? 1 : 0) - (/^Tomorrow/.test(a.when) ? 1 : 0);
+  const links = mineAll.filter((i) => i.kind === 'link').sort(wsort).slice(0, 8);
+  const todos = mineAll.filter((i) => i.kind === 'todo').sort(wsort);
+  const rems = mineAll.filter((i) => i.kind === 'reminder' && i.when).sort(wsort).slice(0, 5);
+  const gap = q.length > 1 ? '64px' : '26px';
+  let list = '';
+  if (links.length) list += `<div class="sec-h in" style="--i:4;margin-top:${gap}"><h3 class="h3">Saved for later</h3><button class="meta press" data-tab="saved">See all</button></div>
+    <div class="lrail in" style="--i:4">${links.map((x) => `<button class="lcard press" data-act="open" data-id="${x.id}"><img src="${x.img}" alt=""><b>${esc(x.title)}</b><span class="${/^Today/.test(x.when) ? 'due' : ''}">${esc(x.when ? x.when.replace(/^Today, /, 'Today ') : x.domain || '')}</span></button>`).join('')}</div>`;
+  if (todos.length) list += `<div class="sec-h in" style="--i:5;margin-top:${list ? '26px' : gap}"><h3 class="h3">To-do lists</h3></div><div class="later-list in" style="--i:5;margin-top:6px">${todos.map((x) => row(x)).join('')}</div>`;
+  if (rems.length) list += `<div class="sec-h in" style="--i:6;margin-top:26px"><h3 class="h3">Reminders</h3><span class="meta">They’ll ping you</span></div><div class="rlist in" style="--i:6">${rems.map((x) => `<button class="rrow press" data-act="actions" data-id="${x.id}"><span class="rt">${esc((x.when.split(', ')[1] || '').replace(' ', '\u00a0'))}</span><span class="rti">${esc(x.title)}</span><span class="rd">${esc(x.when.split(', ')[0])}${x.repeat ? ' · ' + esc(x.repeat) : ''}</span></button>`).join('')}</div>`;
   return `<div class="top in" style="--i:0"><span class="logo"><span style="border-radius:10px;overflow:hidden;display:grid">${mark(S.logo, 34)}</span><span class="date">Sat, 21 Nov</span></span><div style="display:flex;gap:8px;align-items:center"><button class="pill press flamepill" data-act="lil-open" aria-label="${S.streak} day streak">${I.flame}${S.streak}</button><button class="pill press" data-act="notes" aria-label="Notifications" style="width:34px;padding:0;justify-content:center;position:relative">${I.bell}${S.notes.some((n) => n.unread) ? '<i class="ndot" style="position:absolute;top:6px;right:7px"></i>' : ''}</button><button class="avatar press" data-tab="profile" aria-label="Profile">${esc(S.me.name[0] || 'H').toUpperCase()}</button></div></div>
     <p class="sentence in" style="--i:1">${sentence}</p>
     <form class="savebar in" style="--i:2" id="savebar" onsubmit="return false">
@@ -907,7 +956,7 @@ function today() {
     </form>
     <div class="sb-detect" id="sdetect"></div>
     ${stack}
-    ${list ? `<h3 class="h3 in" style="--i:4;margin:${q.length > 1 ? '70px' : (q.length ? '26px' : '30px')} 20px 0">Tomorrow</h3>` : ''}${list}`;
+    ${list}<div style="height:24px"></div>`;
 }
 
 function row(it, opts = {}) {
@@ -951,7 +1000,7 @@ function saved() {
   const q = S.q.trim().toLowerCase();
   const SM = smartCounts();
   const smartOk = (i) => S.smart === 'done' ? i.done : !i.done && (!S.smart || (S.smart === 'today' ? /Today/.test(i.when || '') : S.smart === 'upcoming' ? i.when && !/Today/.test(i.when) : !!i.important));
-  const items = S.items.filter((i) => !i.done && (S.filter === 'all' || (S.filter === 'links' ? i.kind === 'link' : S.filter === 'images' ? !!i.photo : i.kind !== 'link')) && (!q || i.title.toLowerCase().includes(q) || (i.folder || '').toLowerCase().includes(q)));
+  const items = S.items.filter((i) => !i.done && !(isGroup(i) && i.kind !== 'link') && (S.filter === 'all' || (S.filter === 'links' ? i.kind === 'link' : S.filter === 'images' ? !!i.photo : i.kind !== 'link')) && (!q || i.title.toLowerCase().includes(q) || (i.folder || '').toLowerCase().includes(q)));
   const vb = (v, ic, l) => `<button class="${S.view === v ? 'on' : ''}" data-act="view" data-v="${v}" aria-label="${l}">${ic}</button>`;
   const fb = (f, l) => `<button class="${S.filter === f ? 'on' : ''}" data-act="filter" data-f="${f}">${l}</button>`;
   return `<div class="top in" style="--i:0;padding-top:60px"><h1 class="page">Saved</h1><div class="views" id="views-seg"><span class="knob" data-w="fixed"></span>${vb('list', I.vlist, 'List')}${vb('grid', I.vgrid, 'Grid')}${vb('big', I.vbig, 'Big covers')}</div></div>
@@ -1003,6 +1052,7 @@ function folderView() {
       ${f.shared ? `<div style="display:flex;align-items:center;gap:8px;margin-top:10px"><span class="avs"><span class="av" style="background:${AV.H};width:28px;height:28px;font-size:13px">H</span><span class="av" style="background:${AV.R};width:28px;height:28px;font-size:13px">R</span><span class="av" style="background:${AV.A};width:28px;height:28px;font-size:13px">A</span></span><span class="sub" style="margin:0;font-size:15px">You, Riya and Aman · ${count(f.name)} saves</span></div>` : `<p class="sub">${count(f.name)} saves</p>`}
     </section>
     ${f.shared ? `<div class="tabs2 in" style="--i:2" id="ftabs"><span class="knob"></span><button class="${S.folderTab === 'saved' ? 'on' : ''}" data-act="ftab" data-t="saved">Saved</button><button class="${S.folderTab === 'chat' ? 'on' : ''}" data-act="ftab" data-t="chat">Chat</button></div>` : ''}
+    ${f.shared ? `<p class="gnote in" style="--i:2">${I.bell}${f.muted ? 'Muted. Reminders here won’t ping you.' : 'Reminders here ping everyone in the group. They only show inside this group.'}</p>` : ''}
     <div id="fbody" style="position:relative">${body}</div>`;
 }
 
@@ -1268,7 +1318,7 @@ function saveSheet() {
   const alert = d.mode === 'reminder' ? `<h3>Alert</h3><div class="chips">${['On time', '10 min early', '1 hour early'].map((v) => `<button class="chip press ${(d.alert || 'On time') === v ? 'on' : ''}" data-act="d-alert" data-v="${v}">${v}</button>`).join('')}</div>` : '';
   return `${modes}${top}
     <h3>Folder <span style="font-weight:500">${d.mode === 'link' ? '' : '· optional, tap again to remove'}</span></h3><div class="chips">${fchips}</div>
-    <h3>${d.mode === 'todo' ? 'When' : 'Bring it back'}${d.nl && d.nl.found ? ' <span style="font-weight:500">· set from what you typed</span>' : ''}</h3><div class="tiles" style="${d.nl && d.nl.found ? 'opacity:.35;pointer-events:none' : ''}">${tiles}</div>${rep}${alert}
+    <h3>${d.mode === 'todo' ? 'When' : 'Bring it back'}${d.nl && d.nl.found ? ' <span style="font-weight:500">· set from what you typed</span>' : ''}</h3>${d.mode === 'link' ? `<button class="wmic press ${d.wnl && d.wnl.found ? 'set' : ''}" data-act="w-mic">${I.mic}<span>${d.wnl && d.wnl.found ? `<b>${esc(d.wnl.label)}${d.wnl.repeat ? ' · ' + esc(d.wnl.repeat) : ''}</b> · tap to say again` : 'Say when: “Sunday morning”, “kal raat 9 baje”'}</span></button>` : ''}<div class="tiles" style="${(d.nl && d.nl.found) || (d.mode === 'link' && d.wnl && d.wnl.found) ? 'opacity:.35;pointer-events:none' : ''}">${tiles}</div>${rep}${alert}
     ${d.mode === 'link' ? `<div class="field" style="margin-top:12px"><span style="color:var(--ink2)">${I.note}</span><input id="note" placeholder="Add a note (optional)" value="${esc(d.note)}" aria-label="Note"></div>` : ''}
     <div class="save-row"><button class="btn-ghost press" data-act="close-sheet">Cancel</button><button class="btn-blue press" data-act="save" ${canSave ? '' : 'disabled'}>${d.mode === 'todo' ? 'Add to-do' : d.mode === 'reminder' ? 'Set reminder' : 'Save for later'}</button></div>`;
 }
@@ -1320,6 +1370,8 @@ function save() {
   const repeat = d.repeat.length === 7 ? 'Every day' : d.repeat.length === 5 && !d.repeat.includes(5) && !d.repeat.includes(6) && !d.pick ? 'Mon–Fri' : d.repeat.length ? d.repeat.map((i) => ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i]).join(', ') : '';
   const nl = d.mode !== 'link' && d.nl && d.nl.found ? d.nl : null;
   const it = { id: nextId++, kind: d.mode, photo: d.mode !== 'link' && !!d.img, title: (nl ? nl.title : d.title.trim()) || 'Untitled', folder: d.folder, img: d.img, domain: d.domain, when: nl ? nl.label : whenText, repeat: nl && nl.repeat ? nl.repeat : repeat, today: /Today/.test(nl ? nl.label : whenText), order: 5, important: !!d.important, alert: d.alert, steps: d.mode === 'todo' && d.steps.length ? d.steps.map((t) => ({ t, d: false })) : undefined };
+  if (d.mode === 'link' && d.wnl && d.wnl.found) { it.when = d.wnl.label; it.today = /^Today/.test(it.when); it.order = d.wnl.date ? d.wnl.date.getHours() : 21; if (d.wnl.repeat) it.repeat = d.wnl.repeat; maybeSchedule(it, d.wnl); }
+  if (d.mode === 'link') S.lastLink = { id: it.id, t: Date.now() };
   gainXP(5); if (nl) maybeSchedule(it, nl); S.items.unshift(it);
   const sh = $('#sheet');
   sh.classList.add('go');
@@ -1367,6 +1419,11 @@ document.addEventListener('click', (e) => {
     case 'nf-icon': S.nf.icon = +t.dataset.i; buzz(); refreshFolderSheet(); break;
     case 'nf-share': S.nf.shared = !S.nf.shared; buzz(); refreshFolderSheet(); break;
     case 'voice': voiceAdd(); break;
+    case 'v-edit': voiceEdit(); break;
+    case 'v-lang': S.vlang = S.vlang === 'hi-IN' ? 'en-IN' : 'hi-IN'; persist(); stopVoice(true); setTimeout(voiceAdd, 60); break;
+    case 'mute-group': { const f = S.folders.find((x) => x.name === S.folder); f.muted = !f.muted; closeSheet(); toast(f.muted ? `${f.name} muted. No alerts from this group` : `${f.name} unmuted`); render(false); break; }
+    case 'group-push': { closeSheet(); const f = S.folders.find((x) => x.name === S.folder); const it = S.items.find((x) => x.folder === f.name && x.kind === 'reminder' && !x.done) || S.items.find((x) => x.folder === f.name); if (f.muted) { note(`${it.by || 'Aman'} set a reminder in ${f.name}: “${it.title}” (muted)`, 'folder'); toast(`${f.name} is muted, so no alert. It’s in the bell list.`); render(false); } else { toast('Arriving in 3 seconds…'); setTimeout(() => pushNotif(it, f), 3000); } break; }
+    case 'w-mic': linkWhenMic(t); break;
     case 'v-mode': if (S.voice) { S.voice.mode = t.dataset.m; const sp = S.voice.sp; $('#vdet').innerHTML = splitPreview(sp, S.voice.mode, 'v-mode'); $('#vadd').textContent = S.voice.mode === 'list' ? 'Add list' : `Add ${sp.parts.length}`; if ($('#voice').classList.contains('ready')) { clearTimeout(VT); const b = $('#vadd'); b.style.animation = 'none'; void b.offsetWidth; b.style.animation = ''; VT = setTimeout(commitVoice, 7000); } } break;
     case 'bar-mode': if (S.barSplit) { S.barMode = t.dataset.m; $('.view:not(.leaving) #sdetect').innerHTML = splitPreview(S.barSplit, S.barMode, 'bar-mode'); } break;
     case 'voice-cancel': stopVoice(true); break;
@@ -1381,7 +1438,7 @@ document.addEventListener('click', (e) => {
     case 'folder': { S.folder = t.dataset.name; S.folderTab = 'saved'; buzz(); const r = t.getBoundingClientRect(), sr = screen.getBoundingClientRect(); render(true); const v = $('.view:not(.leaving)'); v.style.transformOrigin = `${r.left - sr.left + r.width / 2}px ${r.top - sr.top + r.height / 2}px`; v.classList.add('zoom'); setTimeout(() => v.classList.remove('zoom'), 450); break; }
     case 'back': S.folder = null; buzz(); render(true); break;
     case 'ftab': S.folderTab = t.dataset.t; buzz(); { const c = $('#ftabs'); c.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === t)); knob(c, t); } swapFolderBody(); break;
-    case 'folder-more': openSheet(`<div class="card" style="margin:0"><button class="set press" data-act="toast-close" data-msg="Invite link copied"><span class="t">Invite friends</span></button><button class="set press" data-act="toast-close" data-msg="Muted on this phone"><span class="t">Mute group</span></button><button class="set press" data-act="toast-close" data-msg="Renamed"><span class="t">Rename</span></button></div>`); break;
+    case 'folder-more': openSheet(`<div class="card" style="margin:0"><button class="set press" data-act="toast-close" data-msg="Invite link copied"><span class="t">Invite friends</span></button><button class="set press" data-act="mute-group"><span class="t">${(S.folders.find((f) => f.name === S.folder) || {}).muted ? 'Unmute group' : 'Mute group'}</span></button>${(S.folders.find((f) => f.name === S.folder) || {}).shared ? '<button class="set press" data-act="group-push"><span class="t">Try a group reminder</span></button>' : ''}<button class="set press" data-act="toast-close" data-msg="Renamed"><span class="t">Rename</span></button></div>`); break;
     case 'toast-close': closeSheet(); toast(t.dataset.msg); break;
     case 'new': newDraft(false); if (S.folder) S.draft.folder = S.folder; openSheet(saveSheet()); bindSheetInputs(); break;
     case 'mode': S.draft.mode = t.dataset.m; S.draft.when = t.dataset.m === 'link' ? 0 : 0; if (t.dataset.m !== 'link') { S.draft.title = ''; S.draft.folder = S.folder || ''; } else S.draft.folder = S.folder || 'Hobby'; S.draft.repeat = []; S.draft.pick = false; buzz(); refreshSheet(); break;
@@ -1503,6 +1560,35 @@ function parseNL(text) {
   const take = (re, fn) => { const m = re.exec(work); if (!m) return; ranges.push([m.index, m.index + m[0].length]); work = work.slice(0, m.index) + ' '.repeat(m[0].length) + work.slice(m.index + m[0].length); fn(m); };
   let rep = '', dayOff = null, wd = null, h = null, mi = 0, inMin = null, part = null;
   const wdRe = '(sun|mon|tue|tues|wed|wednes|thu|thur|thurs|fri|sat|satur)(?:day)?';
+  // ---- Hindi / Hinglish: "kal dopahar 12 baje", "raat ko 7 baje", "saade 4 baje shaam"
+  {
+    const HB = '(?<![\\p{L}\\p{M}\\d])', HE = '(?![\\p{L}\\p{M}])';
+    const PART = '(subah|subha|subeh|savere|sawere|सुबह|सवेरे|dopahar|dopehar|dophar|dupahar|dopaher|दोपहर|shaam|sham|शाम|raat|रात)';
+    const FR = '(saade|sade|saadhe|साढ़े|साढे|sava|sawa|सवा|paune|pone|पौने)';
+    const NUM = '(\\d{1,2}|dedh|dhai|डेढ़|ढाई)';
+    const BAJE = '(?:baje|bje|बजे)';
+    const KO = '(?:\\s*(?:ko|को|ke|के|mein|में))?';
+    const hrs = (n, mm) => { if (/^(dedh|डेढ़)$/.test(n)) return [1, 30]; if (/^(dhai|ढाई)$/.test(n)) return [2, 30]; return [+n, +(mm || 0)]; };
+    const frac = (f, hh, m0) => { if (!f) return [hh, m0]; if (/^(saa|sad|सा)/.test(f)) return [hh, 30]; if (/^(sav|saw|सवा)/.test(f)) return [hh, 15]; return [hh - 1 || 12, 45]; };
+    const fix = (p, hh) => {
+      if (!p) return hh < 8 ? hh + 12 : hh;
+      if (/^(su|sa|सु|सव)/.test(p) && !/^(sh|शा)/.test(p)) return hh === 12 ? 0 : hh;
+      if (/^(do|du|दो)/.test(p)) return hh === 12 ? 12 : hh < 7 ? hh + 12 : hh;
+      if (/^(sh|शा)/.test(p)) return hh < 12 ? hh + 12 : hh;
+      return hh === 12 ? 24 : hh >= 5 && hh < 12 ? hh + 12 : hh;
+    };
+    const setH = (p, f, n, mm) => { let [a, b] = hrs(n, mm); [a, b] = frac(f, a, b); a = fix(p, a); if (a >= 24) { h = 23; mi = 59; } else { h = a; mi = b; } };
+    take(new RegExp(HB + '(?:har\\s*roz|har\\s*din|rozana|roz|roj|रोज़ाना|रोज़|रोज|हर\\s*दिन|हर\\s*रोज़?)' + HE, 'u'), () => (rep = 'Every day'));
+    const HWD = [['ravivar|itvaar|itwar|रविवार|इतवार', 0], ['somvar|somwar|सोमवार', 1], ['mangalvar|mangalwar|मंगलवार', 2], ['budhvar|budhwar|बुधवार', 3], ['guruvar|guruwar|brihaspativar|veervar|गुरुवार|बृहस्पतिवार', 4], ['shukravar|shukrawar|शुक्रवार', 5], ['shanivar|shaniwar|शनिवार', 6]];
+    for (const [w, k] of HWD) { take(new RegExp(HB + '(har\\s*|हर\\s*)?(?:' + w + ')(?:\\s*(?:ko|को))?' + HE, 'u'), (m) => { wd = k; if (m[1]) rep = 'Every ' + WDN[k]; }); }
+    take(new RegExp(HB + '(\\d+)\\s*(minute|minat|mint|min|मिनट|ghante|ghanta|ghnte|घंटे|घंटा)\\s*(?:mein|me|में|baad|बाद)' + HE, 'u'), (m) => (inMin = +m[1] * (/^(gh|घं)/.test(m[2]) ? 60 : 1)));
+    take(new RegExp(HB + PART + KO + '\\s*(?:' + FR + '\\s*)?' + NUM + '(?::(\\d{2}))?(?:\\s*' + BAJE + ')?' + HE, 'u'), (m) => setH(m[1], m[2], m[3], m[4]));
+    if (h === null) take(new RegExp(HB + '(?:' + FR + '\\s*)?' + NUM + '(?::(\\d{2}))?\\s*' + BAJE + '(?:\\s*' + PART + KO + ')?' + HE, 'u'), (m) => setH(m[4], m[1], m[2], m[3]));
+    if (h === null) take(new RegExp(HB + PART + KO + HE, 'u'), (m) => (part = /^(su|sa|सु|सव)/.test(m[1]) && !/^(sh|शा)/.test(m[1]) ? 9 : /^(do|du|दो)/.test(m[1]) ? 14 : /^(sh|शा)/.test(m[1]) ? 18 : 21));
+    take(new RegExp(HB + '(parso|parson|परसों)' + HE, 'u'), () => (dayOff = 2));
+    take(new RegExp(HB + '(kal|कल)' + HE, 'u'), () => (dayOff = 1));
+    take(new RegExp(HB + '(aaj|आज)' + HE, 'u'), () => (dayOff = 0));
+  }
   take(/\b(every\s*day|daily)\b/, () => (rep = 'Every day'));
   take(/\b(weekdays|every\s+weekday|mon\s*-\s*fri)\b/, () => (rep = 'Mon–Fri'));
   take(new RegExp('\\bevery\\s+' + wdRe + '\\b'), (m) => { const k = WD.findIndex((x) => m[1].startsWith(x)); rep = 'Every ' + WDN[k]; wd = k; });
@@ -1589,7 +1675,7 @@ function listen(inp, btn, upd) {
   if (btn.classList.contains('on')) { try { REC && REC.stop(); } catch (e) {} btn.classList.remove('on'); return; }
   btn.classList.add('on'); buzz(10);
   const demo = () => {
-    const phrases = ['call mom 9pm tomorrow', 'tomorrow I want to go to the dairy at 7 am and school at 10', 'gym 7am every day', 'buy milk, eggs and bread', 'pay electricity bill on monday'];
+    const phrases = S.vlang === 'hi-IN' ? ['kal dopahar 12 baje mujhe doodh lana hai', 'kal subah 7 baje dairy jana hai aur raat ko 9 baje school ka homework', 'shaam ko saade 4 baje mummy ko call karna hai'] : ['call mom 9pm tomorrow', 'remind me to watch the pasta video tonight', 'tomorrow I want to go to the dairy at 7 am and school at 10 pm', 'gym 7am every day', 'buy milk, eggs and bread'];
     const p = phrases[(listen.n = ((listen.n || 0) + 1)) % phrases.length];
     inp.value = ''; let k = 0;
     const tick = () => { if (!btn.classList.contains('on')) return; inp.value = p.slice(0, ++k); upd(); if (k < p.length) setTimeout(tick, 45); else { btn.classList.remove('on'); inp.focus && inp.focus(); } };
@@ -1712,6 +1798,16 @@ function wireSavebar() {
 function addFromText(v, from, mode) {
   v = (v || '').trim(); if (!v) return;
   const url = v.match(/(https?:\/\/\S+|www\.\S+)/);
+  const lk = url ? null : linkTarget(v);
+  if (lk) {
+    const r = parseNL(v);
+    lk.when = r.found ? r.label : 'Today, 9:00 pm'; lk.today = /^Today/.test(lk.when); lk.later = false; lk.order = r.date ? r.date.getHours() : 21; if (r.repeat) lk.repeat = r.repeat;
+    gainXP(5); maybeSchedule(lk, r); buzz([10, 30, 12]);
+    const b = (from || $('.view:not(.leaving) #sgo') || $('#micfab')).getBoundingClientRect(); sparks(b.left + b.width / 2, b.top + b.height / 2, 8);
+    S.promote = lk.today; render(false);
+    toast(`“${lk.title.slice(0, 22)}${lk.title.length > 22 ? '…' : ''}” comes back ${lk.when.replace(/^Today, /, 'today ').replace(/^Tomorrow, /, 'tomorrow ')}`);
+    return;
+  }
   const sp = url ? null : splitTasks(v);
   if (sp) {
     const m = mode || sp.def, made = buildSplit(sp, m);
@@ -1725,21 +1821,78 @@ function addFromText(v, from, mode) {
   let it;
   if (url) { const u = url[0].startsWith('http') ? url[0] : 'https://' + url[0]; let host = 'link'; try { host = new URL(u).hostname.replace(/^www\./, ''); } catch (e) {} it = { id: nextId++, kind: 'link', title: /youtu/.test(host) ? 'Design systems talk' : 'Saved from ' + host, url: u, domain: host, img: /youtu/.test(host) ? C('d6') : C('d11'), folder: '', when: '', order: 9 }; }
   else { const r = parseNL(v); it = { id: nextId++, kind: 'reminder', title: (r.found ? r.title : v) || v, folder: '', when: r.found ? r.label : 'Today, 9:00 pm', repeat: r.repeat || '', order: r.date ? r.date.getHours() : 21 }; it.today = /^Today/.test(it.when); }
-  S.items.unshift(it); gainXP(5); if (!url) maybeSchedule(it, parseNL(v));
+  S.items.unshift(it); gainXP(5); if (!url) maybeSchedule(it, parseNL(v)); else S.lastLink = { id: it.id, t: Date.now() };
   buzz([10, 30, 12]);
   const b = (from || $('.view:not(.leaving) #sgo') || $('#micfab')).getBoundingClientRect(); sparks(b.left + b.width / 2, b.top + b.height / 2, 8);
   S.promote = !!it.today && queue()[0] === it; render(false);
   toast(it.kind === 'link' ? 'Link saved' : `Added · ${it.when}${it.repeat ? ' · ' + it.repeat.toLowerCase() : ''}`, () => { S.items.splice(S.items.indexOf(it), 1); render(false); });
 }
 
+// ------------------------------------------------------------------ voice: fix the words by hand
+function voiceEdit() {
+  const st = S.voice; if (!st || st.editing) return;
+  st.editing = true; st.live = false; clearTimeout(VT); try { REC && REC.abort(); } catch (e) {}
+  const v = $('#voice'); v.classList.remove('ready');
+  $('#vlil').classList.remove('got'); $('#vlil').innerHTML = lil('idle', 120);
+  const box = $('#vtext');
+  box.outerHTML = '<textarea id="vta" class="vtext vta" rows="2" enterkeyhint="done" aria-label="Edit what you said"></textarea>';
+  const ta = $('#vta'); ta.value = st.value;
+  const fit = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 140) + 'px'; };
+  fit(); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+  $('#vstat').textContent = 'Editing. It adds 1 second after you stop typing.';
+  let idle = 0;
+  const pause = () => { clearTimeout(VT); clearTimeout(idle); v.classList.remove('ready'); };
+  const resume = () => {
+    if (S.voice !== st || !st.value.trim()) return;
+    v.classList.remove('ready'); void v.offsetWidth; v.classList.add('ready');
+    $('#vstat').textContent = 'Adding in a few seconds. Tap the words to keep editing.';
+    $('#vlil').innerHTML = lil('happy', 120);
+    clearTimeout(VT); VT = setTimeout(commitVoice, 7000);
+  };
+  ta.addEventListener('input', () => { pause(); st.value = ta.value; fit(); st.upd(); $('#vstat').textContent = 'Editing. It adds 1 second after you stop typing.'; idle = setTimeout(resume, 1000); });
+  ta.addEventListener('focus', () => { pause(); idle = setTimeout(resume, 1000); });
+  ta.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(idle); commitVoice(); } });
+  idle = setTimeout(resume, 1000);
+}
+
+// ------------------------------------------------------------------ voice for links
+const LSTOP = new Set('watch,video,reel,post,link,read,check,open,look,this,that,with,remind,later,tonight,tomorrow,morning,evening,weekend,again,about,from,want,need,have,please,recipe,article,saved,dekhna,dekh,padhna,yaad'.split(','));
+function linkTarget(text) {
+  const t = (text || '').toLowerCase();
+  if (!/(watch|see|read|open|check|look|dekh|padh|देख|पढ़|reel|video|post|link|recipe|article|vid)/.test(t)) return null;
+  const links = S.items.filter((i) => i.kind === 'link' && !i.done);
+  if (/\b(this|that|it|isko|ise|ye|yeh|wo|woh)\b|(इसे|इसको|ये|वो)/.test(t) && S.lastLink && Date.now() - S.lastLink.t < 30 * 60e3) { const l = links.find((i) => i.id === S.lastLink.id); if (l) return l; }
+  const words = t.split(/[^a-z0-9\u0900-\u097f]+/).filter((w) => w.length > 3 && !LSTOP.has(w));
+  let best = null, score = 0;
+  for (const l of links) { const lw = l.title.toLowerCase().split(/[^a-z0-9]+/); const sc = words.filter((w) => lw.some((x) => x.length > 3 && (x === w || x.startsWith(w) || w.startsWith(x)))).length; if (sc > score) { score = sc; best = l; } }
+  return score ? best : null;
+}
+function linkWhenMic(btn) {
+  const d = S.draft; if (!d) return;
+  const span = btn.querySelector('span'); btn.classList.add('on'); span.textContent = 'Listening… say “Sunday morning” or “kal raat 9 baje”'; buzz(10);
+  let said = '', done = false, audio = false;
+  const fin = () => { if (done) return; done = true; try { R && R.abort(); } catch (e) {} d.wnl = parseNL(said); if (!d.wnl.found) { d.wnl = null; toast('Didn’t catch a time. Try “tonight” or “kal raat 9 baje”'); } refreshSheet(); };
+  const demo = () => { if (done) return; const sayings = ['sunday morning', 'tonight at 9', 'kal raat 9 baje']; said = sayings[(linkWhenMic.n = ((linkWhenMic.n || 0) + 1)) % 3]; span.textContent = said; setTimeout(fin, 700); };
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition; let R = null;
+  if (!SR) return demo();
+  try {
+    R = new SR(); R.lang = S.vlang || 'en-IN'; R.interimResults = true;
+    R.onaudiostart = () => (audio = true);
+    R.onresult = (e) => { said = Array.from(e.results).map((x) => x[0].transcript).join(' '); span.textContent = said; if (e.results[e.results.length - 1].isFinal) setTimeout(fin, 300); };
+    R.onerror = () => { if (!said) demo(); };
+    R.onend = () => { if (said) fin(); else demo(); };
+    R.start(); setTimeout(() => { if (!audio && !said) { try { R.abort(); } catch (e) {} demo(); } }, 2500);
+  } catch (e) { demo(); }
+}
+
 // ------------------------------------------------------------------ one sentence → several reminders or a to-do list
 const LEAD = /^\s*(?:(?:ok(?:ay)?|hey|so|and|also|then|um+|uh+)[\s,]+)*(?:(?:i\s+(?:want|need|have|got|wanna)\s+to|i(?:'m|\s+am)\s+going\s+to|i\s+will|i'll|remind\s+me\s+to|remind\s+me|remember\s+to|don'?t\s+forget\s+to|please|i\s+(?:want|need)|add)\s+)?/i;
-function cleanTitle(t) { t = (t || '').replace(LEAD, '').replace(/\s+(?:and\s+so|etc|and\s+all|so\s+on)\.?$/i, '').replace(/[.,;]+$/, '').trim(); return t.charAt(0).toUpperCase() + t.slice(1); }
-const TIMED = /\d\s*(?:am|pm)\b|\bat\s+\d|\bnoon\b|\bmidnight\b|\btonight\b|\bin\s+\d+\s*(?:min|hour|hr)|\b(?:morning|afternoon|evening)\b/i;
-const DAYW = /\b(today|tonight|tomorrow|tmrw|tmr|(?:on\s+)?(?:mon|tues|wednes|thurs|fri|satur|sun)day)\b/i;
+function cleanTitle(t) { t = (t || '').replace(/(^|\s)(mujhe|muje|mujhko|मुझे|मुझको)(?=\s|$)/giu, ' ').replace(/(^|\s)(yaad\s+(?:dila(?:na|\s+dena|o)?|rakhna)|याद\s+दिला(?:ना|\s+देना)?|remind\s+kar(?:na|\s+dena|o)?)(?=\s|$)/giu, ' ').replace(/\s+(hai|hain|he|h|है|हैं|hoga|होगा)\s*[.!।]?\s*$/iu, '').replace(/^\s*(ki|ko|ke|को|के)\s+/iu, '').replace(/\s+/g, ' ').replace(LEAD, '').replace(/\s+(?:and\s+so|etc|and\s+all|so\s+on)\.?$/i, '').replace(/[.,;]+$/, '').trim(); return t.charAt(0).toUpperCase() + t.slice(1); }
+const TIMED = /baje|बजे|subah|dopahar|dophar|shaam|raat|सुबह|दोपहर|शाम|रात|\d\s*(?:am|pm)\b|\bat\s+\d|\bnoon\b|\bmidnight\b|\btonight\b|\bin\s+\d+\s*(?:min|hour|hr)|\b(?:morning|afternoon|evening)\b/i;
+const DAYW = /(?<![\p{L}\p{M}])(kal|aaj|parso|parson|कल|आज|परसों|today|tonight|tomorrow|tmrw|tmr|(?:on\s+)?(?:mon|tues|wednes|thurs|fri|satur|sun)day)(?![\p{L}\p{M}])/iu;
 function splitTasks(text) {
   const raw = (text || '').trim(); if (!raw || /https?:\/\/|www\./.test(raw)) return null;
-  const segs = raw.split(/\s*(?:,|;|\band\s+then\b|\bthen\b|\band\s+also\b|\balso\b|\band\b)\s*/i).map((x) => x.trim()).filter((x) => x.replace(LEAD, '').replace(/^(so|etc|all|on)$/i, '').trim().length > 1);
+  const segs = raw.split(/\s*(?:,|;|\band\s+then\b|\bthen\b|\band\s+also\b|\balso\b|\band\b|\baur\b|\bphir\b|\buske\s+baad\b)\s*|\s+(?:और|फिर|उसके\s+बाद)\s+/i).map((x) => x.trim()).filter((x) => x.replace(LEAD, '').replace(/^(so|etc|all|on)$/i, '').trim().length > 1);
   if (segs.length < 2) return null;
   let carry = '';
   const parts = segs.map((sg) => {
@@ -1799,30 +1952,34 @@ let VT = null, VS = null;
 function voiceAdd() {
   closeSheet(); hidePush();
   const v = $('#voice');
-  v.innerHTML = `<div class="vlil" id="vlil">${lil('listen', 120)}</div><p class="vtext" id="vtext"><span class="hint">I’m listening… try “call mom 9pm tomorrow”</span></p><div class="vdet" id="vdet"></div><p class="vstat" id="vstat">Speak, then pause. ${esc(S.lil.name)} adds it for you.</p><div class="vrow"><button class="btn-ghost press" data-act="voice-cancel">Cancel</button><button class="btn-blue press" data-act="voice-add" id="vadd" disabled>Add</button></div>`;
+  const hi = S.vlang === 'hi-IN';
+  v.innerHTML = `<button class="vlang press" data-act="v-lang" aria-label="Switch language">${hi ? 'हि' : 'EN'}<small>${hi ? 'Hindi' : 'English'}</small></button><div class="vlil" id="vlil">${lil('listen', 120)}</div><div class="vtext" id="vtext" data-act="v-edit"><span class="hint">${hi ? 'बोलिए… जैसे “kal 12 baje doodh lana hai”' : 'I’m listening… try “call mom 9pm tomorrow”'}</span></div><div class="vdet" id="vdet"></div><p class="vstat" id="vstat">Speak, then pause. Tap the words to fix them.</p><div class="vrow"><button class="btn-ghost press" data-act="voice-cancel">Cancel</button><button class="btn-blue press" data-act="voice-add" id="vadd" disabled>Add</button></div>`;
   v.classList.remove('ready'); v.classList.add('show'); $('#micfab').classList.add('on'); $('#scrim').classList.add('show');
   const st = { value: '', live: true }; S.voice = st; VS = st;
   let silT = 0, heardAny = false, audio = false, fell = false;
   const upd = () => {
     const r = parseNL(st.value);
     let html = '', last = 0; for (const [a, b] of r.ranges) { html += esc(st.value.slice(last, a)) + '<mark>' + esc(st.value.slice(a, b)) + '</mark>'; last = b; } html += esc(st.value.slice(last));
-    $('#vtext').innerHTML = html || '<span class="hint">I’m listening…</span>';
+    if (!st.editing) $('#vtext').innerHTML = html ? html + '<span class="vpen">' + II.pen + '</span>' : '<span class="hint">I’m listening…</span>';
+    const lk = linkTarget(st.value); st.lk = lk;
+    if (lk) { $('#vdet').innerHTML = `<div class="sp-link"><img src="${lk.img}" alt=""><div><b>${esc(lk.title)}</b><span>${I.clock} comes back ${esc(r.found ? r.label : 'Today, 9:00 pm')}</span></div></div>`; $('#vadd').textContent = 'Set time'; $('#vadd').disabled = !st.value.trim(); if (!st.editing) { const l = $('#vlil'); l.classList.remove('hear'); void l.offsetWidth; l.classList.add('hear'); } return; }
     const sp = splitTasks(st.value); st.sp = sp; $('#vdet').innerHTML = sp ? splitPreview(sp, st.mode || sp.def, 'v-mode') : detectChips(r); $('#vadd').textContent = sp ? ((st.mode || sp.def) === 'list' ? 'Add list' : `Add ${sp.parts.length}`) : 'Add';
     $('#vadd').disabled = !st.value.trim();
-    const l = $('#vlil'); l.classList.remove('hear'); void l.offsetWidth; l.classList.add('hear');
+    if (!st.editing) { const l = $('#vlil'); l.classList.remove('hear'); void l.offsetWidth; l.classList.add('hear'); }
   };
+  st.upd = upd;
   const ready = () => {
     if (S.voice !== st || !st.value.trim() || !st.live) return;
     st.live = false; try { REC && REC.stop(); } catch (e) {}
     $('#vlil').innerHTML = lil('happy', 120); $('#vlil').classList.add('got');
-    $('#vstat').textContent = 'Got it! Adding this in a few seconds…';
+    $('#vstat').textContent = 'Got it! Adding in a few seconds. Tap the words to fix them.';
     v.classList.add('ready'); clearTimeout(VT); VT = setTimeout(commitVoice, 7000);
   };
   const heard = () => { heardAny = true; upd(); clearTimeout(silT); silT = setTimeout(ready, 1600); };
   const demo = () => {
     if (fell || S.voice !== st) return; fell = true;
-    const phrases = ['call mom 9pm tomorrow', 'tomorrow I want to go to the dairy at 7 am and school at 10', 'gym 7am every day', 'buy milk, eggs and bread', 'pay electricity bill on monday'];
-    const p = phrases[(voiceAdd.n = ((voiceAdd.n || 0) + 1)) % phrases.length];
+    const phrases = S.vlang === 'hi-IN' ? ['kal dopahar 12 baje mujhe doodh lana hai', 'kal subah 7 baje dairy jana hai aur raat ko 9 baje school ka homework', 'shaam ko saade 4 baje mummy ko call karna hai'] : ['call mom 9pm tomorrow', 'remind me to watch the pasta video tonight', 'tomorrow I want to go to the dairy at 7 am and school at 10 pm', 'gym 7am every day', 'buy milk, eggs and bread'];
+    const p = phrases[(voiceAdd.n = ((voiceAdd.n || 0) + 1)) % phrases.length]; st.demo = true;
     let k = 0;
     const words = p.split(' ');
     const tick = () => { if (S.voice !== st || !st.live) return; st.value = words.slice(0, ++k).join(' '); heard(); if (k < words.length) setTimeout(tick, 260); };
@@ -1831,7 +1988,7 @@ function voiceAdd() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) return demo();
   try {
-    REC = new SR(); REC.lang = 'en-IN'; REC.interimResults = true; REC.continuous = true;
+    REC = new SR(); REC.lang = S.vlang || 'en-IN'; REC.interimResults = true; REC.continuous = true;
     REC.onaudiostart = () => { audio = true; };
     REC.onresult = (e) => { if (!st.live) return; st.value = Array.from(e.results).map((x) => x[0].transcript).join(' ').replace(/\s+/g, ' ').trim(); heard(); };
     REC.onerror = (e) => { if (!heardAny) demo(); };
@@ -1985,14 +2142,16 @@ function notesSheet() {
     <div class="save-row"><button class="btn-blue press" data-act="close-sheet">Close</button></div>`);
 }
 let PT;
-function pushNotif(it) {
+function pushNotif(it, grp) {
   if (!it) return;
+  if (!grp && isGroup(it)) grp = S.folders.find((f) => f.name === it.folder);
+  if (grp && grp.muted) { note(`“${it.title}” in ${grp.name} (muted)`, 'folder', it.id); render(false); return; }
   const p = $('#push');
-  p.innerHTML = `<div class="pu-head">${mark(0, 20)}<span>Little Later</span><span style="margin-left:auto">now</span></div>
-    <div class="pu-body" data-act="actions" data-id="${it.id}"><b>${esc(it.title)}</b><span>${it.kind === 'link' ? 'Saved for ' + (it.when || 'now').replace(/^Today, /, '') + ' · ' + (it.domain || '') : esc(S.lil.name) + ' is reminding you · ' + (it.when || '').replace(/^Today, /, '')}</span></div>
+  p.innerHTML = `<div class="pu-head">${mark(0, 20)}<span>${grp ? 'Little Later · ' + esc(grp.name) : 'Little Later'}</span><span style="margin-left:auto">now</span></div>
+    <div class="pu-body" data-act="actions" data-id="${it.id}"><b>${esc(it.title)}</b><span>${grp ? esc(it.by || 'Aman') + ' set this for the group · ' + esc((it.when || '').replace(/^Today, /, '')) : it.kind === 'link' ? 'Saved for ' + (it.when || 'now').replace(/^Today, /, '') + ' · ' + (it.domain || '') : esc(S.lil.name) + ' is reminding you · ' + (it.when || '').replace(/^Today, /, '')}</span></div>
     <div class="pu-acts"><button class="press" data-act="push-done" data-id="${it.id}">Done</button><button class="press" data-act="push-later" data-id="${it.id}">Tomorrow</button></div>`;
   p.classList.remove('show'); void p.offsetWidth; p.classList.add('show');
-  note(`“${it.title}” is due now`, 'bell', it.id);
+  note(grp ? `${it.by || 'Aman'} in ${grp.name}: “${it.title}”` : `“${it.title}” is due now`, grp ? 'folder' : 'bell', it.id);
   chime(S.tone, true); buzz(S.vibe ? [200, 80, 200, 80, 400] : 20);
   clearTimeout(PT); PT = setTimeout(() => p.classList.remove('show'), 9000);
   render(false);
