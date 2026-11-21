@@ -457,6 +457,7 @@ class _FolderDetailState extends State<FolderDetail> {
         children: [
           SheetTitle(f.name),
           SetRow(icon: 'pen', title: 'Rename', onTap: () => Navigator.pop(ctx, 'rename')),
+          SetRow(icon: 'spark', title: 'Colour', onTap: () => Navigator.pop(ctx, 'colour')),
           SetRow(icon: 'users', title: f.collab ? 'Invite more friends' : 'Share with friends', onTap: () => Navigator.pop(ctx, 'invite')),
           if (f.collab) SetRow(icon: 'user', title: owner ? 'People and removing' : 'People', onTap: () => Navigator.pop(ctx, 'people')),
           if (f.collab) SetRow(icon: s.store.isMuted(f) ? 'bell' : 'bell-off', title: s.store.isMuted(f) ? 'Unmute group' : 'Mute group', onTap: () => Navigator.pop(ctx, 'mute')),
@@ -478,6 +479,23 @@ class _FolderDetailState extends State<FolderDetail> {
       s.store.setMuted(f, on);
       s.app.reminders.reschedule();
       s.toast.show(on ? 'Muted. No alerts from “${shortText(f.name)}” on this phone' : 'Unmuted. You will get this group’s alerts again');
+    }
+    if (a == 'colour' && mounted) {
+      final c = await showLLSheet<int>(context, builder: (ctx) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            const SheetTitle('Folder colour'),
+            Wrap(spacing: 12, runSpacing: 12, children: [
+              for (final c in Folder.palette)
+                Tap(
+                  onTap: () => Navigator.pop(ctx, c),
+                  child: Container(width: 44, height: 44, decoration: BoxDecoration(shape: BoxShape.circle, color: Color(c), border: Border.all(color: s.store.colorOf(f) == c ? LL.of(ctx).ink : Colors.transparent, width: 3))),
+                ),
+            ]),
+            const SizedBox(height: 10),
+          ]));
+      if (c != null) {
+        f.color = c;
+        s.store.touchFolder();
+      }
     }
     if (a == 'rename' && mounted) {
       final c = TextEditingController(text: f.name);
@@ -561,8 +579,8 @@ class _FolderDetailState extends State<FolderDetail> {
                               children: [
                                 Positioned.fill(
                                   child: Container(
-                                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), color: ll.stripe),
-                                    child: Center(child: LLIcon(f.iconKey, color: ll.ink)),
+                                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), color: Color(st.colorOf(f))),
+                                    child: Center(child: LLIcon(f.iconKey, color: const Color(0xFF17130F))),
                                   ),
                                 ),
                               ],

@@ -77,6 +77,7 @@ class _Tile extends StatelessWidget {
     final its = st.inFolder(folder.name).where((i) => !i.isDone && i.extra['msg'] != true).toList();
     final covers = its.where((i) => i.thumbnail.startsWith('http')).take(3).toList();
     final n = its.length;
+    final col = Color(st.colorOf(folder));
     final veil = ll.dark
         ? const [Color(0x0014141A), Color(0x3814141A), Color(0x8014141A)]
         : const [Color(0x00FFFFFF), Color(0x66FFFFFF), Color(0xBFFFFFFF)];
@@ -87,25 +88,24 @@ class _Tile extends StatelessWidget {
         borderRadius: BorderRadius.circular(28),
         child: Stack(fit: StackFit.expand, children: [
           Container(color: ll.surface),
+          // The folder's own colour glows from the top.
+          Positioned(
+            left: -30,
+            right: -30,
+            top: -40,
+            bottom: 10,
+            child: DecoratedBox(decoration: BoxDecoration(gradient: RadialGradient(center: const Alignment(-.2, -.4), colors: [col.withValues(alpha: ll.dark ? .55 : .5), col.withValues(alpha: 0)], radius: .75))),
+          ),
           if (covers.isNotEmpty)
-            // A soft glow made from the covers inside.
             Positioned(
               left: -40,
               right: -40,
               top: -40,
-              bottom: 10,
+              bottom: 40,
               child: ImageFiltered(
-                imageFilter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
-                child: Opacity(opacity: .9, child: Cover2(item: covers.first, radius: 0)),
+                imageFilter: ImageFilter.blur(sigmaX: 26, sigmaY: 26),
+                child: Opacity(opacity: .35, child: Cover2(item: covers.first, radius: 0)),
               ),
-            )
-          else
-            Positioned(
-              left: -30,
-              right: -30,
-              top: -30,
-              bottom: 20,
-              child: DecoratedBox(decoration: BoxDecoration(gradient: RadialGradient(colors: [ll.blue.withValues(alpha: .45), ll.blue.withValues(alpha: 0)], radius: .7))),
             ),
           Positioned.fill(child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, stops: const [.3, .62, 1], colors: veil)))),
           // Fanned covers.
@@ -131,7 +131,7 @@ class _Tile extends StatelessWidget {
               ]),
             )
           else
-            Positioned(left: 14, top: 14, child: Container(width: 52, height: 52, decoration: BoxDecoration(color: ll.blue, borderRadius: BorderRadius.circular(16)), alignment: Alignment.center, child: LLIcon(folder.iconKey, size: 24, color: ll.onAccent))),
+            Positioned(left: 14, top: 14, child: Container(width: 52, height: 52, decoration: BoxDecoration(color: col, borderRadius: BorderRadius.circular(16)), alignment: Alignment.center, child: LLIcon(folder.iconKey, size: 24, color: const Color(0xFF17130F)))),
           Positioned(
             left: 14,
             right: 14,

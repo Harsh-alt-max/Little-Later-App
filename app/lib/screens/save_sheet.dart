@@ -1125,6 +1125,7 @@ class _NewFolder extends StatefulWidget {
 class _NewFolderState extends State<_NewFolder> {
   final _name = TextEditingController();
   String _icon = 'folder';
+  int? _color;
   bool _shared = false;
   bool _busy = false;
 
@@ -1144,6 +1145,10 @@ class _NewFolderState extends State<_NewFolder> {
     }
     setState(() => _busy = true);
     final f = s.store.addFolder(n, _icon);
+    if (_color != null) {
+      f.color = _color!;
+      s.store.touchFolder();
+    }
     if (_shared) {
       await s.app.sync.share(f);
       if (!mounted) return;
@@ -1163,6 +1168,22 @@ class _NewFolderState extends State<_NewFolder> {
       children: [
         const SheetTitle('New folder'),
         LLInput(controller: _name, hint: 'Folder name', icon: 'folder', maxLength: 18, autofocus: true, onChanged: (_) => setState(() {}), onSubmitted: (_) => _go()),
+        const Lab('Colour'),
+        Wrap(spacing: 10, runSpacing: 10, children: [
+          for (final c in Folder.palette)
+            Tap(
+              onTap: () {
+                Haptics.tick();
+                setState(() => _color = c);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: Color(c), border: Border.all(color: (_color ?? AppScope.of(context).store.nextFolderColor()) == c ? ll.ink : Colors.transparent, width: 2.5)),
+              ),
+            ),
+        ]),
         const Lab('Icon'),
         GridView.count(
           crossAxisCount: 4,
@@ -1180,8 +1201,8 @@ class _NewFolderState extends State<_NewFolder> {
                 },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 250),
-                  decoration: BoxDecoration(color: i == _icon ? ll.blue : ll.surface2, borderRadius: BorderRadius.circular(18)),
-                  child: Center(child: LLIcon(i, color: i == _icon ? Colors.white : ll.ink2)),
+                  decoration: BoxDecoration(color: i == _icon ? Color(_color ?? AppScope.of(context).store.nextFolderColor()) : ll.surface2, borderRadius: BorderRadius.circular(18)),
+                  child: Center(child: LLIcon(i, color: i == _icon ? const Color(0xFF17130F) : ll.ink2)),
                 ),
               ),
           ],

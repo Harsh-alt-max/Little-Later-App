@@ -375,6 +375,18 @@ class AppStore extends ChangeNotifier {
   // ---------------------------------------------------------------------------
   // Folders
 
+  /// A folder's colour: the one picked, else a distinct one by position.
+  int colorOf(Folder f) {
+    if (f.extra['color'] is int) return f.extra['color'] as int;
+    final i = folders.indexOf(f);
+    return Folder.palette[(i < 0 ? 0 : i) % Folder.palette.length];
+  }
+
+  int nextFolderColor() {
+    final used = folders.map(colorOf).toSet();
+    return Folder.palette.firstWhere((c) => !used.contains(c), orElse: () => Folder.palette[folders.length % Folder.palette.length]);
+  }
+
   Folder addFolder(String name, String icon, {bool collab = false}) {
     var n = name.trim();
     var k = 2;
@@ -382,6 +394,7 @@ class AppStore extends ChangeNotifier {
       n = '${name.trim()} ${k++}';
     }
     final f = Folder(name: n, icon: icon, collab: collab);
+    f.color = nextFolderColor();
     folders.add(f);
     _save();
     return f;

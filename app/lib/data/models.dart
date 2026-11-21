@@ -143,6 +143,20 @@ class Folder {
   List<Map<String, dynamic>> get collaborators =>
       (extra['collaborators'] is List) ? (extra['collaborators'] as List).whereType<Map>().map((m) => m.cast<String, dynamic>()).toList() : [];
 
+  /// Each folder has its own colour (picked, or a stable default from its name).
+  static const palette = [0xFFFF9F7E, 0xFFF5C451, 0xFF7ED492, 0xFF5FC8E8, 0xFF7E8CFF, 0xFFC58BFF, 0xFFFF7FB0, 0xFFB9B4AA];
+  int get color {
+    final c = extra['color'];
+    if (c is int) return c;
+    var h = 0;
+    for (final u in name.toLowerCase().codeUnits) {
+      h = (h * 31 + u) & 0x7fffffff;
+    }
+    return palette[h % palette.length];
+  }
+
+  set color(int v) => extra['color'] = v;
+
   /// Icon key for the v7 sprite. v1.2 folders carry a `kind` (work/love/hobby).
   String get iconKey {
     const byKind = {'work': 'bag', 'love': 'heart', 'hobby': 'spark', 'trip': 'plane'};
