@@ -65,6 +65,12 @@ class _VoiceState extends State<_Voice> with TickerProviderStateMixin {
     WidgetsBinding.instance.addPostFrameCallback((_) => _start());
   }
 
+  // Android stops listening after a short pause, so we keep the words heard so
+  // far (_acc) and quietly start listening again until you stop talking.
+  String _acc = '', _cur = '';
+  DateTime _began = DateTime.now();
+  bool _restarting = false;
+
   Future<void> _start() async {
     final ok = await _initStt();
     if (!mounted || _closed) return;
@@ -72,41 +78,67 @@ class _VoiceState extends State<_Voice> with TickerProviderStateMixin {
       setState(() => _phase = _Phase.failed);
       return;
     }
+    _acc = '';
+    _cur = '';
+    _began = DateTime.now();
     setState(() => _phase = _Phase.listening);
     Haptics.light();
+    _stt.statusListener = (st) {
+      if (st == 'done' || st == 'notListening') _sessionEnded();
+    };
+    _stt.errorListener = (_) => _sessionEnded();
+    await _listen();
+  }
+
+  Future<void> _listen() async {
+    if (!mounted || _closed || _phase != _Phase.listening) return;
     try {
       await _stt.listen(
         onResult: (r) {
           if (!mounted || _phase != _Phase.listening) return;
-          _text.text = r.recognizedWords;
+          _cur = r.recognizedWords;
+          if (r.finalResult) {
+            _acc = '$_acc $_cur'.trim();
+            _cur = '';
+          }
+          _text.text = '$_acc $_cur'.trim();
           _lil.play(MascotAct.squish);
+          // Done when nothing new has been heard for 2 seconds.
           _silence?.cancel();
-          _silence = Timer(const Duration(milliseconds: 1600), _ready);
-          if (r.finalResult) _ready();
+          _silence = Timer(const Duration(milliseconds: 2000), _ready);
           setState(() {});
         },
         listenOptions: SpeechListenOptions(
           partialResults: true,
           listenMode: ListenMode.dictation,
-          cancelOnError: true,
+          cancelOnError: false,
           localeId: _lang.replaceAll('-', '_'),
-          pauseFor: const Duration(seconds: 3),
-          listenFor: const Duration(seconds: 45),
+          pauseFor: const Duration(seconds: 4),
+          listenFor: const Duration(seconds: 60),
         ),
       );
     } catch (_) {
-      if (mounted) setState(() => _phase = _Phase.failed);
+      if (mounted && _text.text.isEmpty) setState(() => _phase = _Phase.failed);
     }
-    _stt.statusListener = (s) {
-      if (!mounted || _phase != _Phase.listening) return;
-      if (s == 'done' || s == 'notListening') {
-        if (_text.text.trim().isNotEmpty) {
-          _ready();
-        } else {
-          setState(() => _phase = _Phase.failed);
-        }
-      }
-    };
+  }
+
+  void _sessionEnded() {
+    if (!mounted || _closed || _phase != _Phase.listening || _restarting) return;
+    if (_cur.isNotEmpty) {
+      _acc = '$_acc $_cur'.trim();
+      _cur = '';
+    }
+    final waited = DateTime.now().difference(_began);
+    if (_text.text.trim().isEmpty && waited > const Duration(seconds: 10)) {
+      setState(() => _phase = _Phase.failed);
+      return;
+    }
+    // Still talking (or not started yet): listen again.
+    _restarting = true;
+    Future<void>.delayed(const Duration(milliseconds: 120), () async {
+      _restarting = false;
+      await _listen();
+    });
   }
 
   void _ready() {

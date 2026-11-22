@@ -131,7 +131,25 @@ ThemeData buildTheme(LL ll) => ThemeData(
       fontFamily: kFont,
       splashFactory: NoSplash.splashFactory,
       highlightColor: Colors.transparent,
-      colorScheme: ColorScheme.fromSeed(seedColor: ll.blue, brightness: ll.dark ? Brightness.dark : Brightness.light, surface: ll.surface),
+      colorScheme: ColorScheme.fromSeed(seedColor: ll.blue, brightness: ll.dark ? Brightness.dark : Brightness.light, surface: ll.surface).copyWith(
+        primary: ll.blue,
+        onPrimary: const Color(0xFF17130F),
+        surface: ll.dark ? const Color(0xFF16161A) : Colors.white,
+        surfaceContainerHigh: ll.dark ? const Color(0xFF16161A) : Colors.white,
+        onSurface: ll.ink,
+      ),
+      timePickerTheme: TimePickerThemeData(
+        backgroundColor: ll.dark ? const Color(0xFF16161A) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        dialBackgroundColor: ll.surface2,
+        hourMinuteShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+      datePickerTheme: DatePickerThemeData(
+        backgroundColor: ll.dark ? const Color(0xFF16161A) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        headerBackgroundColor: ll.dark ? const Color(0xFF16161A) : Colors.white,
+        headerForegroundColor: ll.ink,
+      ),
       textSelectionTheme: TextSelectionThemeData(cursorColor: ll.blue),
       extensions: [ll],
     );

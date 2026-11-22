@@ -342,7 +342,11 @@ class SyncService {
     return byKey.values.toList();
   }
 
+  /// Why the last shared-folder upload failed (null when it worked).
+  String? lastShareError;
+
   Future<void> _pushCollab(Folder f) async {
+    lastShareError = null;
     if (_email.isEmpty || f.collabId.isEmpty || f.extra['awaitMove'] == true) return;
     final known = _knownIds[f.collabId] ?? {};
     final del = {...((f.extra['deletedIds'] as List?) ?? []).map((e) => '$e'), ...store.deletedIds.where(known.contains)};
@@ -362,10 +366,19 @@ class SyncService {
       'deletedIds': del.toList(),
       'updatedAt': DateTime.now().millisecondsSinceEpoch,
     });
-    if (payload.length > 880000) return;
+    if (payload.length > 880000) {
+      lastShareError = 'This folder is too big to share. Move some saves out first.';
+      return;
+    }
     try {
       await _db.collection('collab_folders').doc(f.collabId).set({'version': DateTime.now().millisecondsSinceEpoch, 'payload': payload});
-    } catch (_) {}
+    } on FirebaseException catch (e) {
+      lastShareError = e.code == 'permission-denied'
+          ? 'Confirm your email first (check your inbox), or sign in with Google, then share again.'
+          : 'Couldn’t share right now. Check your internet and try again.';
+    } catch (_) {
+      lastShareError = 'Couldn’t share right now. Check your internet and try again.';
+    }
   }
 
   /// Turn a folder into a shared one. Returns the collab id.
@@ -394,9 +407,14 @@ class SyncService {
     if (!RegExp(r'^cf_[a-z0-9_]+$').hasMatch(cid)) return 'That invite link looks broken.';
     if (_folderFor(cid) != null) return null;
     try {
-      final snap = await _db.collection('collab_folders').doc(cid).get();
+      var snap = await _db.collection('collab_folders').doc(cid).get();
+      if (snap.data()?['payload'] is! String) {
+        // The owner may still be uploading it: wait a moment and look again.
+        await Future<void>.delayed(const Duration(seconds: 3));
+        snap = await _db.collection('collab_folders').doc(cid).get(const GetOptions(source: Source.server));
+      }
       final raw = snap.data()?['payload'];
-      if (raw is! String) return 'That shared folder no longer exists.';
+      if (raw is! String) return 'This invite isn’t ready yet. Ask ${by.isEmpty ? 'your friend' : by} to open the folder in Little Later (with internet) and send the link again.';
       final p = jsonDecode(raw) as Map<String, dynamic>;
       final rf = (p['folder'] as Map?) ?? {};
       var fname = '${rf['name'] ?? (name.isEmpty ? 'Shared' : name)}';
@@ -415,6 +433,9 @@ class SyncService {
       _watchCollabs();
       await _pushCollab(f);
       return null;
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') return 'Confirm your email first (check your inbox), or sign in with Google, then open the link again.';
+      return 'Couldn’t open that shared folder. Check your internet.';
     } catch (_) {
       return 'Couldn’t open that shared folder. Check your internet.';
     }

@@ -536,3 +536,14 @@ class _Ticker2State extends State<Ticker2> {
   @override
   Widget build(BuildContext context) => widget.builder(context);
 }
+
+/// Pick a date, then a time.
+Future<DateTime?> pickDateTime(BuildContext context, {DateTime? initial}) async {
+  final n = AppStore.now();
+  final init = initial == null || initial.isBefore(n) ? n.add(const Duration(hours: 1)) : initial;
+  final d = await showDatePicker(context: context, initialDate: init, firstDate: DateTime(n.year, n.month, n.day), lastDate: DateTime(n.year + 3));
+  if (d == null || !context.mounted) return null;
+  final tm = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(init));
+  if (tm == null) return null;
+  return DateTime(d.year, d.month, d.day, tm.hour, tm.minute);
+}

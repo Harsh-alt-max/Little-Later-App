@@ -1,4 +1,9 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../config.dart';
 
 /// Thin wrapper over Firebase Auth. Methods return an error message for a
 /// toast, null on success, or [AuthService.verify] when the email still needs
@@ -59,20 +64,52 @@ class AuthService {
     }
   }
 
-  /// Google sign-in through Firebase's own Google flow (a Google account page
-  /// opens, then returns to the app).
+  /// Google sign-in: opens our sign-in page in Chrome (fast, uses the
+  /// accounts already on the phone), which hands the Google token back to the
+  /// app through a littlelater://auth link.
+  Completer<String?>? _pending;
+  Timer? _resumeTimer;
+
   Future<String?> google() async {
     if (!ready) return 'Can’t reach Little Later right now. Check your internet.';
-    try {
-      final p = GoogleAuthProvider()..setCustomParameters({'prompt': 'select_account'});
-      await FirebaseAuth.instance.signInWithProvider(p);
-      return null;
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'canceled' || e.code == 'web-context-canceled' || e.code == 'user-cancelled') return 'cancelled';
-      return _msg(e);
-    } catch (_) {
-      return 'Google sign-in failed. Try again.';
+    _pending?.complete('cancelled');
+    final c = _pending = Completer<String?>();
+    final ok = await launchUrl(Uri.parse('$siteUrl/app-auth.html'), mode: LaunchMode.externalApplication).catchError((_) => false);
+    if (!ok) {
+      _pending = null;
+      return 'Couldn’t open the browser. Try again.';
     }
+    return c.future.timeout(const Duration(minutes: 4), onTimeout: () => 'cancelled');
+  }
+
+  /// littlelater://auth?id=…&at=… from the sign-in page.
+  Future<void> handleLink(Uri u) async {
+    _resumeTimer?.cancel();
+    final c = _pending;
+    _pending = null;
+    final id = u.queryParameters['id'], at = u.queryParameters['at'];
+    if (id == null && at == null) {
+      c?.complete('Google sign-in failed. Try again.');
+      return;
+    }
+    try {
+      await FirebaseAuth.instance.signInWithCredential(GoogleAuthProvider.credential(idToken: id, accessToken: at));
+      c?.complete(null);
+    } on FirebaseAuthException catch (e) {
+      c?.complete(_msg(e));
+    } catch (_) {
+      c?.complete('Google sign-in failed. Try again.');
+    }
+  }
+
+  /// Back in the app without a sign-in link: treat it as cancelled.
+  void onResumed() {
+    if (_pending == null) return;
+    _resumeTimer?.cancel();
+    _resumeTimer = Timer(const Duration(seconds: 6), () {
+      _pending?.complete('cancelled');
+      _pending = null;
+    });
   }
 
   Future<String?> resetPassword(String email) async {

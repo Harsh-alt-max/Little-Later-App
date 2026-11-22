@@ -11,12 +11,11 @@ import 'package:path_provider/path_provider.dart';
 import '../data/models.dart';
 import '../data/nl.dart';
 import '../data/store.dart';
-import '../screens/save_sheet.dart' show parseLink, fetchTitle, LinkInfo, suggestFolder, pickTime, extractUrl, newFolderSheet;
+import '../screens/save_sheet.dart' show parseLink, fetchTitle, LinkInfo, suggestFolder, extractUrl, newFolderSheet;
 import '../services/haptics.dart';
 import '../theme/tokens.dart';
 import 'actions.dart';
 import 'kit.dart';
-import 'voice.dart' show listenOnce;
 
 // =============================================================================
 // Text field that lights up the time words as you type.
@@ -313,9 +312,9 @@ class SaveBodyState extends State<SaveBody> {
   bool _loading = false;
   late String _folder = widget.folder;
   int _tile = 0;
-  DateTime? _picked;
-  NL? _sayWhen;
-  bool _listening = false;
+  DateTime? _override; // a time the person picked for the chosen tile
+  NL? _sayWhen; // a time typed after a pasted link
+  bool _remind = true; // to-dos can be saved without a reminder
   List<int> _repeat = [];
   bool _pickDays = false;
   final List<String> _steps = [];
@@ -405,49 +404,65 @@ class SaveBodyState extends State<SaveBody> {
     DateTime tonight(int h, int m) => at(0, h, m).isAfter(n) ? at(0, h, m) : at(1, h, m);
     DateTime weekend() {
       final add = (6 - n.weekday) % 7;
-      final d = DateTime(n.year, n.month, n.day + (add == 0 && n.hour >= 10 ? 7 : add), 10);
-      return d;
+      return DateTime(n.year, n.month, n.day + (add == 0 && n.hour >= 10 ? 7 : add), 10);
     }
 
+    const pick = _Tile('Pick', 'Date & time', _none);
     switch (_mode) {
       case Mode.link:
         return [
           _Tile('Tonight', '7:30 pm', () => tonight(19, 30)),
           _Tile('Tomorrow', '9:00 am', () => at(1, 9)),
           _Tile('Weekend', 'Sat 10 am', weekend),
-          _Tile('None', 'Just save', () => null),
+          pick,
+          const _Tile('None', 'Just save', _none),
         ];
       case Mode.reminder:
-        final h = n.add(const Duration(hours: 1));
         return [
-          _Tile('In 1 hour', fmtT(h), () => n.add(const Duration(hours: 1))),
+          _Tile('In 1 hour', fmtT(n.add(const Duration(hours: 1))), () => n.add(const Duration(hours: 1))),
           _Tile('Tonight', '9:00 pm', () => tonight(21, 0)),
           _Tile('Tomorrow', '9:00 am', () => at(1, 9)),
-          _Tile('Pick', _picked != null ? '${fmtDay(_picked!)} ${fmtT(_picked!)}' : 'Any day', () => _picked),
+          pick,
         ];
       case Mode.todo:
         return [
           _Tile('Today', '8:00 pm', () => tonight(20, 0)),
           _Tile('Tomorrow', '9:00 am', () => at(1, 9)),
-          _Tile('Weekend', 'Sat 10 am', weekend),
-          _Tile('No date', 'Anytime', () => null),
+          pick,
+          const _Tile('No date', 'Anytime', _none),
         ];
     }
   }
 
-  Future<void> _sayWhenMic() async {
-    setState(() => _listening = true);
-    Haptics.light();
-    final said = await listenOnce(context);
-    if (!mounted) return;
-    setState(() {
-      _listening = false;
-      if (said != null) {
-        final r = parseNL(said);
-        _sayWhen = r.found ? r : null;
-        if (!r.found) AppScope.of(context).toast.show('Didn’t catch a time. Try “tonight” or “kal raat 9 baje”');
-      }
-    });
+  static DateTime? _none() => null;
+
+  /// The time that will be saved, from the tile (or a time the person picked).
+  DateTime? _chosen() {
+    final tl = _tiles();
+    if (_tile >= tl.length) _tile = 0;
+    if (tl[_tile].label == 'Pick') return _override;
+    final base = tl[_tile].at();
+    return _override ?? base;
+  }
+
+  Future<void> _pickDate() async {
+    final n = AppStore.now();
+    final init = _chosen() ?? n.add(const Duration(hours: 1));
+    final d = await showDatePicker(context: context, initialDate: init.isBefore(n) ? n : init, firstDate: DateTime(n.year, n.month, n.day), lastDate: DateTime(n.year + 3));
+    if (d == null || !mounted) return;
+    final tm = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(init));
+    if (tm == null || !mounted) return;
+    setState(() => _override = DateTime(d.year, d.month, d.day, tm.hour, tm.minute));
+  }
+
+  Future<void> _pickTimeOnly() async {
+    final cur = _chosen();
+    if (cur == null) return _pickDate();
+    final tm = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(cur));
+    if (tm == null || !mounted) return;
+    var d = DateTime(cur.year, cur.month, cur.day, tm.hour, tm.minute);
+    if (!d.isAfter(AppStore.now())) d = d.add(const Duration(days: 1));
+    setState(() => _override = d);
   }
 
   Future<void> _pickPhoto() async {
@@ -475,14 +490,13 @@ class SaveBodyState extends State<SaveBody> {
         return;
       }
     }
-    final tiles = _tiles();
     DateTime? when;
     var repeat = _repeat;
     String title;
     Item it;
     if (_mode == Mode.link) {
       if (_info == null) return;
-      when = _sayWhen?.date ?? tiles[_tile].at();
+      when = _sayWhen?.date ?? _chosen();
       if (_sayWhen != null && _sayWhen!.repeat.isNotEmpty) repeat = _sayWhen!.repeat;
       it = newItem(ItemKind.link, _info!.title, folder: _folder, when: when, url: _info!.url, thumb: _info!.image, note: _note.text.trim());
       if (repeat.isNotEmpty) it.repeatDays = repeat;
@@ -492,14 +506,19 @@ class SaveBodyState extends State<SaveBody> {
       final r = parseNL(text);
       title = cleanTitle(r.found ? r.title : text);
       if (title.isEmpty) title = text;
-      when = r.date ?? tiles[_tile].at();
+      when = r.date ?? _chosen();
       if (_mode == Mode.reminder && when == null) {
-        when = await pickTime(context, initial: AppStore.now().add(const Duration(hours: 1)));
+        await _pickDate();
+        when = _override;
         if (when == null) return;
       }
       if (r.repeat.isNotEmpty) repeat = r.repeat;
       it = newItem(_mode == Mode.todo ? ItemKind.todoList : ItemKind.reminder, title, folder: _folder, when: when, repeat: repeat);
-      if (_mode == Mode.todo) it.tasks = [for (final x in _steps) TodoTask(id: newId(), text: x)];
+      if (_mode == Mode.todo) {
+        it.tasks = [for (final x in _steps) TodoTask(id: newId(), text: x)];
+        if (_step.text.trim().isNotEmpty) it.tasks.add(TodoTask(id: newId(), text: _step.text.trim()));
+        if (!_remind && when != null) it.extra['noAlert'] = true;
+      }
       if (_photo != null) {
         it.thumbnail = Uri.file(_photo!).toString();
         it.extra['photo'] = true;
@@ -514,12 +533,50 @@ class SaveBodyState extends State<SaveBody> {
     s.app.gain(5);
     final g = _folder.isEmpty ? null : st.folderNamed(_folder);
     final where = _folder.isEmpty ? 'Saved' : _folder;
-    final whenTxt = when == null ? '' : ' · ${fmtDay(when).toLowerCase()} ${fmtT(when)}';
+    final whenTxt = when == null ? '' : ' · ${fmtDay(when).toLowerCase()} ${fmtT(when)}${it.extra['noAlert'] == true ? ' · no reminder' : ''}';
     s.toast.show(
       it.kind == ItemKind.link ? 'Saved to $where$whenTxt' : '${it.kind == ItemKind.todoList ? 'To-do added' : 'Reminder set'}$whenTxt${g != null && g.collab ? ' · ${g.name} gets it too' : ''}',
       undo: () => st.deleteItem(it.id),
     );
   }
+
+  Widget _stepsWidget(LL ll) => Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          for (var i = 0; i < _steps.length; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(children: [
+                Container(width: 18, height: 18, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: ll.ink3, width: 1.5))),
+                const SizedBox(width: 10),
+                Expanded(child: Text(_steps[i], style: t(15, FontWeight.w400, ll.ink))),
+                Tap(onTap: () => setState(() => _steps.removeAt(i)), child: Padding(padding: const EdgeInsets.all(4), child: LLIcon('x', size: 14, color: ll.ink3))),
+              ]),
+            ),
+          Container(
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(color: ll.dark ? ll.surface : Colors.white, borderRadius: BorderRadius.circular(16)),
+            child: Row(children: [
+              Opacity(opacity: .5, child: LLIcon('plus', size: 16, color: ll.ink)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextField(
+                  controller: _step,
+                  textInputAction: TextInputAction.next,
+                  onSubmitted: (v) {
+                    if (v.trim().isEmpty) return;
+                    setState(() => _steps.add(v.trim()));
+                    _step.clear();
+                  },
+                  style: t(15, FontWeight.w400, ll.ink),
+                  decoration: InputDecoration.collapsed(hintText: 'Add a step, press enter', hintStyle: t(15, FontWeight.w400, ll.ink3)),
+                ),
+              ),
+            ]),
+          ),
+        ]),
+      );
 
   Widget _fade(Widget w) => widget.fade == null ? w : FadeTransition(opacity: widget.fade!, child: w);
 
@@ -652,6 +709,7 @@ class SaveBodyState extends State<SaveBody> {
           ),
         )),
       field(),
+      if (_mode == Mode.todo) _stepsWidget(ll),
       if (plan != null)
         _fade(Padding(padding: const EdgeInsets.only(top: 8), child: PlanPreview(plan: plan, mode: _splitMode, onMode: (m) => setState(() => _splitMode = m)))),
       if (_mode != Mode.link)
@@ -691,70 +749,87 @@ class SaveBodyState extends State<SaveBody> {
         if (group != null && group.collab && _mode != Mode.link)
           Padding(padding: const EdgeInsets.fromLTRB(4, 8, 4, 0), child: Text('Everyone in ${group.name} gets this reminder. It only shows inside the group.', style: t(13, FontWeight.w400, ll.ink2))),
         SheetLabel(_mode == Mode.todo ? 'When' : _mode == Mode.link ? 'Bring it back' : 'When${nlFound ? ' · set from what you typed' : ''}'),
-        if (_mode == Mode.link)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Tap(
-              onTap: _sayWhenMic,
-              scale: .98,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                height: 48,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                decoration: BoxDecoration(color: ll.chip, borderRadius: BorderRadius.circular(16), border: Border.all(color: _listening ? ll.blue : Colors.transparent, width: 1.5)),
-                child: Row(children: [
-                  LLIcon('mic', size: 18, color: _listening ? ll.blue : ll.ink),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _sayWhen != null
-                        ? Text.rich(TextSpan(children: [
-                            TextSpan(text: '${fmtDay(_sayWhen!.date!)}, ${fmtT(_sayWhen!.date!)}${_sayWhen!.repeat.isNotEmpty ? ' · ${_sayWhen!.repeatText}' : ''}', style: t(13, FontWeight.w600, ll.blueInk)),
-                            TextSpan(text: ' · tap to say again', style: t(13, FontWeight.w400, ll.ink2)),
-                          ]))
-                        : Text(_listening ? 'Listening… say “Sunday morning”' : 'Say when: “Sunday morning”, “kal raat 9 baje”', maxLines: 1, overflow: TextOverflow.ellipsis, style: t(13, FontWeight.w400, ll.ink2)),
-                  ),
-                ]),
-              ),
-            ),
-          ),
-        IgnorePointer(
-          ignoring: nlFound || (_mode == Mode.link && _sayWhen != null),
-          child: Opacity(
-            opacity: nlFound || (_mode == Mode.link && _sayWhen != null) ? .35 : 1,
-            child: Row(children: [
-              for (var i = 0; i < tiles.length; i++) ...[
-                if (i > 0) const SizedBox(width: 6),
-                Expanded(
-                  child: Tap(
-                    onTap: () async {
-                      Haptics.tick();
-                      if (_mode == Mode.reminder && i == 3) {
-                        final d = await pickTime(context, initial: _picked ?? AppStore.now().add(const Duration(hours: 1)));
-                        if (d == null || !mounted) return;
-                        setState(() => _picked = d);
-                      }
-                      setState(() => _tile = i);
+        Builder(builder: (_) {
+          final locked = nlFound || (_mode == Mode.link && _sayWhen != null);
+          final when = locked ? (nlFound ? plan.nl.date : _sayWhen!.date) : _chosen();
+          return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            IgnorePointer(
+              ignoring: locked,
+              child: Opacity(
+                opacity: locked ? .35 : 1,
+                child: SizedBox(
+                  height: 58,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: tiles.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 6),
+                    itemBuilder: (_, i) {
+                      final sel = _tile == i;
+                      final isPick = tiles[i].label == 'Pick';
+                      final sub = isPick && sel && _override != null ? '${fmtDay(_override!)} ${fmtT(_override!)}' : sel && _override != null && !isPick ? fmtT(_override!) : tiles[i].sub;
+                      return Tap(
+                        onTap: () async {
+                          Haptics.tick();
+                          if (isPick) {
+                            setState(() => _tile = i);
+                            await _pickDate();
+                            return;
+                          }
+                          setState(() {
+                            if (_tile != i) _override = null;
+                            _tile = i;
+                          });
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          width: tiles.length > 4 ? 96 : (MediaQuery.sizeOf(context).width - 32 - 32 - 18) / 4,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          decoration: BoxDecoration(color: ll.dark ? ll.surface : Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: sel ? ll.ink : Colors.transparent, width: 1.5)),
+                          child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(tiles[i].label, maxLines: 1, overflow: TextOverflow.ellipsis, style: t(13, FontWeight.w600, ll.ink)),
+                            Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: t(11, FontWeight.w400, sel ? ll.blueInk : ll.ink2)),
+                          ]),
+                        ),
+                      );
                     },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      height: 56,
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      decoration: BoxDecoration(
-                        color: ll.dark ? ll.surface : Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: _tile == i ? ll.ink : Colors.transparent, width: 1.5),
-                      ),
-                      child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(tiles[i].label, maxLines: 1, style: t(13, FontWeight.w600, ll.ink)),
-                        Text(tiles[i].sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: t(11, FontWeight.w400, ll.ink2)),
-                      ]),
-                    ),
                   ),
                 ),
-              ],
-            ]),
-          ),
-        ),
+              ),
+            ),
+            // The exact time, with a clock to change it.
+            if (when != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Tap(
+                  scale: .98,
+                  onTap: locked ? null : _pickTimeOnly,
+                  child: Container(
+                    height: 48,
+                    padding: const EdgeInsets.only(left: 14, right: 6),
+                    decoration: BoxDecoration(color: ll.chip, borderRadius: BorderRadius.circular(16)),
+                    child: Row(children: [
+                      LLIcon('clock', size: 17, color: ll.ink),
+                      const SizedBox(width: 10),
+                      Expanded(child: Text('${fmtDay(when)}, ${fmtT(when)}${locked ? ' · from what you typed' : ''}', style: t(15, FontWeight.w500, ll.ink))),
+                      if (!locked)
+                        Container(
+                          height: 36,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(color: ll.dark ? ll.surface : Colors.white, borderRadius: BorderRadius.circular(99)),
+                          child: Text('Change time', style: t(13, FontWeight.w500, ll.ink)),
+                        ),
+                    ]),
+                  ),
+                ),
+              ),
+            if (_mode == Mode.todo && when != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Surface(child: SetRow(icon: 'bell', title: 'Remind me', sub: _remind ? 'You get a notification at this time' : 'Just keep it on this day, no notification', trailing: Toggle(on: _remind, onTap: () => setState(() => _remind = !_remind)), onTap: () => setState(() => _remind = !_remind))),
+              ),
+          ]);
+        }),
         if (_mode != Mode.link) ...[
           const SheetLabel('Repeat'),
           Wrap(spacing: 8, runSpacing: 8, children: [
@@ -788,41 +863,6 @@ class SaveBodyState extends State<SaveBody> {
                 ],
               ]),
             ),
-        ],
-        if (_mode == Mode.todo) ...[
-          const SheetLabel('Steps'),
-          for (var i = 0; i < _steps.length; i++)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Row(children: [
-                Container(width: 18, height: 18, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: ll.ink3, width: 1.5))),
-                const SizedBox(width: 10),
-                Expanded(child: Text(_steps[i], style: t(15, FontWeight.w400, ll.ink))),
-                Tap(onTap: () => setState(() => _steps.removeAt(i)), child: Padding(padding: const EdgeInsets.all(4), child: LLIcon('x', size: 14, color: ll.ink3))),
-              ]),
-            ),
-          Container(
-            height: 48,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(color: ll.dark ? ll.surface : Colors.white, borderRadius: BorderRadius.circular(16)),
-            child: Row(children: [
-              Opacity(opacity: .5, child: LLIcon('plus', size: 16, color: ll.ink)),
-              const SizedBox(width: 10),
-              Expanded(
-                child: TextField(
-                  controller: _step,
-                  textInputAction: TextInputAction.next,
-                  onSubmitted: (v) {
-                    if (v.trim().isEmpty) return;
-                    setState(() => _steps.add(v.trim()));
-                    _step.clear();
-                  },
-                  style: t(15, FontWeight.w400, ll.ink),
-                  decoration: InputDecoration.collapsed(hintText: 'Add a step, press enter', hintStyle: t(15, FontWeight.w400, ll.ink3)),
-                ),
-              ),
-            ]),
-          ),
         ],
         if (_mode == Mode.link)
           Padding(

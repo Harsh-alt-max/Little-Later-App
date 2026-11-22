@@ -20,6 +20,7 @@ class LilCorner extends StatefulWidget {
 class _LilCornerState extends State<LilCorner> {
   final _m = MascotController();
   int _poke = 0;
+  int? _try; // an outfit being tried on before buying
 
   @override
   void dispose() {
@@ -47,7 +48,7 @@ class _LilCornerState extends State<LilCorner> {
           return Stack(children: [
             ListView(
               physics: const BouncingScrollPhysics(),
-              padding: EdgeInsets.fromLTRB(16, top + 64, 16, 40),
+              padding: EdgeInsets.fromLTRB(16, top + 64, 16, _try != null ? 240 : 40),
               children: [
                 GestureDetector(
                   onTap: () {
@@ -66,7 +67,7 @@ class _LilCornerState extends State<LilCorner> {
                         alignment: Alignment.bottomCenter,
                         duration: const Duration(milliseconds: 600),
                         curve: Motion.spring,
-                        child: SizedBox(width: 190, height: 190, child: MascotView(stage: lv.n, controller: _m, outfit: st.outfitNow)),
+                        child: SizedBox(width: 190, height: 190, child: MascotView(stage: lv.n, controller: _m, outfit: _try ?? st.outfitNow)),
                       ),
                     ),
                   ),
@@ -202,24 +203,23 @@ class _LilCornerState extends State<LilCorner> {
                               st.wear(i);
                               _m.play(MascotAct.hop);
                               Haptics.light();
-                            } else if (st.unlock(i)) {
-                              sparksAt(bc, n: 14);
-                              Haptics.medium();
-                              s.toast.show('Unlocked ${kLilOutfits[i].toLowerCase()}!');
-                              _m.play(MascotAct.hop);
                             } else {
+                              // Try it on first; buying is a separate tap.
                               Haptics.light();
-                              s.toast.show('Need ${cost - st.hearts} more hearts for ${kLilOutfits[i].toLowerCase()}');
+                              setState(() => _try = i);
+                              _m.play(MascotAct.hop);
                             }
                           },
                           child: Container(
-                            decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: wear ? ll.blue : Colors.transparent, width: 1.5)),
+                            decoration: BoxDecoration(color: ll.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: wear || _try == i ? ll.blue : Colors.transparent, width: 1.5)),
                             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                               SizedBox(width: 92, height: 92, child: MascotView(stage: 3, live: false, outfit: i)),
                               const SizedBox(height: 6),
                               Text(kLilOutfits[i], style: t(15, FontWeight.w600, ll.ink)),
                               const SizedBox(height: 2),
-                              wear
+                              _try == i
+                                  ? Text('Trying on', style: t(13, FontWeight.w500, ll.blueInk))
+                                  : wear
                                   ? Text('Wearing', style: t(13, FontWeight.w500, ll.blueInk))
                                   : own
                                       ? Text('Wear', style: t(13, FontWeight.w400, ll.ink2))
@@ -232,6 +232,52 @@ class _LilCornerState extends State<LilCorner> {
                 ),
               ],
             ),
+            if (_try != null)
+              Positioned(
+                left: 12,
+                right: 12,
+                bottom: MediaQuery.paddingOf(context).bottom + 12,
+                child: Builder(builder: (bc) {
+                  final i = _try!, cost = kLilOutfitCost[i], can = st.hearts >= cost;
+                  return Container(
+                    padding: const EdgeInsets.fromLTRB(10, 10, 14, 14),
+                    decoration: BoxDecoration(color: ll.dark ? const Color(0xFF16161A) : Colors.white, borderRadius: BorderRadius.circular(28), border: Border.all(color: ll.line)),
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      Row(children: [
+                        SizedBox(width: 84, height: 84, child: MascotView(stage: 3, outfit: i, staticMood: Mood.happy)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(kLilOutfits[i], style: t(22, FontWeight.w600, ll.ink, ls: -.02)),
+                            const SizedBox(height: 4),
+                            Row(children: [const HeartFill(size: 14), const SizedBox(width: 5), Text(can ? '$cost hearts · you have ${st.hearts}' : 'Needs $cost hearts · you have ${st.hearts}', style: t(13, FontWeight.w500, can ? ll.ink2 : ll.blueInk))]),
+                          ]),
+                        ),
+                      ]),
+                      const SizedBox(height: 10),
+                      Row(children: [
+                        GhostBtn(label: 'Not now', onTap: () => setState(() => _try = null)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: AccentBtn(
+                            label: can ? 'Buy for $cost' : 'Keep your streak to earn more',
+                            enabled: can,
+                            onTap: () {
+                              if (!st.unlock(i)) return;
+                              st.wear(i);
+                              sparksAt(bc, n: 16);
+                              Haptics.medium();
+                              s.toast.show('${kLilOutfits[i]} is yours!');
+                              _m.play(MascotAct.hop);
+                              setState(() => _try = null);
+                            },
+                          ),
+                        ),
+                      ]),
+                    ]),
+                  );
+                }),
+              ),
             Positioned(
               left: 16,
               right: 16,

@@ -89,6 +89,17 @@ void main() {
       expect(store.streak, 10);
       await shot(tester, '${look}_1_today');
 
+      // Pull down: Lil peeks.
+      final g = await tester.startGesture(tester.getCenter(find.text('Paste a link or type a reminder')));
+      for (var i = 0; i < 12; i++) {
+        await g.moveBy(const Offset(0, 22));
+        await tester.pump(const Duration(milliseconds: 30));
+      }
+      await tester.pump(const Duration(milliseconds: 300));
+      await shot(tester, '${look}_1b_pull');
+      await g.up();
+      await settle(tester, 800);
+
       // The Today bar grows into the save sheet.
       await tester.tap(find.text('Paste a link or type a reminder'));
       await settle(tester, 600);
@@ -109,6 +120,15 @@ void main() {
         await settle(tester, 1200);
       }
 
+      // To-do: steps sit under the title; pick a time; save without a reminder.
+      await tester.tap(find.byWidgetPredicate((w) => w.runtimeType.toString() == 'Dock2').first.evaluate().isEmpty ? find.text('x') : find.bySemanticsLabel('Save something').first);
+      await settle(tester, 800);
+      await tester.tap(find.text('To-do'));
+      await settle(tester, 500);
+      await shot(tester, '${look}_3c_todo');
+      await tester.tap(find.text('Cancel').last);
+      await settle(tester, 800);
+
       await tester.tap(find.bySemanticsLabel('Saved'));
       await settle(tester);
       await shot(tester, '${look}_4_saved');
@@ -126,6 +146,14 @@ void main() {
       await settle(tester, 1200);
       expect(find.text('day streak'), findsWidgets);
       await shot(tester, '${look}_7_lil');
+      await tester.dragUntilVisible(find.text('Star crown'), find.byType(Scrollable).last, const Offset(0, -300));
+      await settle(tester, 400);
+      await tester.tap(find.text('Star crown'));
+      await settle(tester, 900);
+      expect(find.text('Not now'), findsOneWidget);
+      await shot(tester, '${look}_7b_tryon');
+      await tester.tap(find.text('Not now'));
+      await settle(tester, 400);
       await tester.tap(find.bySemanticsLabel('Close').first);
       await settle(tester, 1200);
 

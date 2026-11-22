@@ -1,6 +1,4 @@
 // Folders: big soft tiles made from what's inside.
-import 'dart:ui' show ImageFilter;
-
 import 'package:material_ui/material_ui.dart';
 
 import '../data/models.dart';
@@ -25,7 +23,7 @@ class FoldersView extends StatelessWidget {
         return EyesRefresh(
           onRefresh: s.app.refresh,
           child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            physics: const AlwaysScrollableScrollPhysics(parent: ClampingScrollPhysics()),
             padding: EdgeInsets.fromLTRB(16, top + 18, 16, 150),
             children: [
               Padding(
@@ -75,7 +73,6 @@ class _Tile extends StatelessWidget {
     final s = AppScope.of(context);
     final st = s.store;
     final its = st.inFolder(folder.name).where((i) => !i.isDone && i.extra['msg'] != true).toList();
-    final covers = its.where((i) => i.thumbnail.startsWith('http')).take(3).toList();
     final n = its.length;
     final col = Color(st.colorOf(folder));
     final veil = ll.dark
@@ -96,42 +93,8 @@ class _Tile extends StatelessWidget {
             bottom: 10,
             child: DecoratedBox(decoration: BoxDecoration(gradient: RadialGradient(center: const Alignment(-.2, -.4), colors: [col.withValues(alpha: ll.dark ? .55 : .5), col.withValues(alpha: 0)], radius: .75))),
           ),
-          if (covers.isNotEmpty)
-            Positioned(
-              left: -40,
-              right: -40,
-              top: -40,
-              bottom: 40,
-              child: ImageFiltered(
-                imageFilter: ImageFilter.blur(sigmaX: 26, sigmaY: 26),
-                child: Opacity(opacity: .35, child: Cover2(item: covers.first, radius: 0)),
-              ),
-            ),
           Positioned.fill(child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, stops: const [.3, .62, 1], colors: veil)))),
-          // Fanned covers.
-          if (covers.isNotEmpty)
-            Positioned(
-              left: 14,
-              top: 14,
-              right: 14,
-              height: 96,
-              child: Stack(children: [
-                for (var i = covers.length - 1; i >= 0; i--)
-                  Positioned(
-                    left: i * 22.0,
-                    top: i * 6.0,
-                    child: Transform.rotate(
-                      angle: (i - 1) * .08,
-                      child: Container(
-                        decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.white.withValues(alpha: .6), width: 2)),
-                        child: Cover2(item: covers[i], width: 70, height: 80, radius: 12),
-                      ),
-                    ),
-                  ),
-              ]),
-            )
-          else
-            Positioned(left: 14, top: 14, child: Container(width: 52, height: 52, decoration: BoxDecoration(color: col, borderRadius: BorderRadius.circular(16)), alignment: Alignment.center, child: LLIcon(folder.iconKey, size: 24, color: const Color(0xFF17130F)))),
+          Positioned(left: 14, top: 14, child: Container(width: 52, height: 52, decoration: BoxDecoration(color: col, borderRadius: BorderRadius.circular(16)), alignment: Alignment.center, child: LLIcon(folder.iconKey, size: 24, color: const Color(0xFF17130F)))),
           Positioned(
             left: 14,
             right: 14,

@@ -61,7 +61,7 @@ class _SavedViewState extends State<SavedView> {
         return EyesRefresh(
           onRefresh: s.app.refresh,
           child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            physics: const AlwaysScrollableScrollPhysics(parent: ClampingScrollPhysics()),
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: EdgeInsets.fromLTRB(0, top + 18, 0, 150),
             children: [

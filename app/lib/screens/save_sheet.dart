@@ -1153,7 +1153,7 @@ class _NewFolderState extends State<_NewFolder> {
       await s.app.sync.share(f);
       if (!mounted) return;
       Navigator.pop(context, f);
-      s.toast.show('“${shortText(f.name)}” is shared. Open it to invite friends.');
+      s.toast.show(s.app.sync.lastShareError ?? '“${shortText(f.name)}” is shared. Open it to invite friends.');
     } else {
       Navigator.pop(context, f);
       s.toast.show('“${shortText(f.name)}” created');

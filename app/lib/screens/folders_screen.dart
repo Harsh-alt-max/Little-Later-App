@@ -327,6 +327,13 @@ class _FolderDetailState extends State<FolderDetail> {
   Folder get f => widget.folder;
 
   @override
+  void initState() {
+    super.initState();
+    // Small capsule when idle, full composer while typing.
+    _msgFocus.addListener(() => setState(() {}));
+  }
+
+  @override
   void dispose() {
     _scroll.dispose();
     _msg.dispose();
@@ -365,6 +372,11 @@ class _FolderDetailState extends State<FolderDetail> {
     }
     await s.app.sync.share(f);
     if (!mounted) return;
+    final err = s.app.sync.lastShareError;
+    if (err != null) {
+      s.toast.show(err);
+      return;
+    }
     await inviteSheet(context, f);
   }
 
@@ -481,17 +493,35 @@ class _FolderDetailState extends State<FolderDetail> {
       s.toast.show(on ? 'Muted. No alerts from “${shortText(f.name)}” on this phone' : 'Unmuted. You will get this group’s alerts again');
     }
     if (a == 'colour' && mounted) {
-      final c = await showLLSheet<int>(context, builder: (ctx) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      final c = await showLLSheet<int>(
+        context,
+        builder: (ctx) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
             const SheetTitle('Folder colour'),
-            Wrap(spacing: 12, runSpacing: 12, children: [
-              for (final c in Folder.palette)
-                Tap(
-                  onTap: () => Navigator.pop(ctx, c),
-                  child: Container(width: 44, height: 44, decoration: BoxDecoration(shape: BoxShape.circle, color: Color(c), border: Border.all(color: s.store.colorOf(f) == c ? LL.of(ctx).ink : Colors.transparent, width: 3))),
-                ),
-            ]),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                for (final c in Folder.palette)
+                  Tap(
+                    onTap: () => Navigator.pop(ctx, c),
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Color(c),
+                        border: Border.all(color: s.store.colorOf(f) == c ? LL.of(ctx).ink : Colors.transparent, width: 3),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
             const SizedBox(height: 10),
-          ]));
+          ],
+        ),
+      );
       if (c != null) {
         f.color = c;
         s.store.touchFolder();
@@ -659,11 +689,18 @@ class _FolderDetailState extends State<FolderDetail> {
                           if (f.collab)
                             Padding(
                               padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
-                              child: Row(children: [
-                                Opacity(opacity: .6, child: LLIcon(st.isMuted(f) ? 'quiet' : 'bell', size: 15, color: ll.ink)),
-                                const SizedBox(width: 8),
-                                Expanded(child: Text(st.isMuted(f) ? 'Muted. Reminders here won’t ping you.' : 'Reminders here ping everyone in the group. They only show inside this group.', style: t(13, FontWeight.w400, ll.ink2))),
-                              ]),
+                              child: Row(
+                                children: [
+                                  Opacity(opacity: .6, child: LLIcon(st.isMuted(f) ? 'quiet' : 'bell', size: 15, color: ll.ink)),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      st.isMuted(f) ? 'Muted. Reminders here won’t ping you.' : 'Reminders here ping everyone in the group. They only show inside this group.',
+                                      style: t(13, FontWeight.w400, ll.ink2),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           if (its.isEmpty)
                             Container(
@@ -672,7 +709,13 @@ class _FolderDetailState extends State<FolderDetail> {
                               child: Text('Empty for now. Add a link, reminder or to-do.', textAlign: TextAlign.center, style: t(14, FontWeight.w600, ll.ink3)),
                             )
                           else
-                            Transform.translate(offset: const Offset(-20, 0), child: SizedBox(width: MediaQuery.sizeOf(context).width, child: v2.ItemsView(items: its, view: st.viewMode, inFolder: true, by: f.collab))),
+                            Transform.translate(
+                              offset: const Offset(-20, 0),
+                              child: SizedBox(
+                                width: MediaQuery.sizeOf(context).width,
+                                child: v2.ItemsView(items: its, view: st.viewMode, inFolder: true, by: f.collab),
+                              ),
+                            ),
                           const SizedBox(height: 14),
                           Tap(
                             onTap: () {
@@ -702,51 +745,79 @@ class _FolderDetailState extends State<FolderDetail> {
                 ],
               ),
             ),
+            if (chat && !_msgFocus.hasFocus && _msg.text.isEmpty)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: composerBottom,
+                child: Center(
+                  child: Tap(
+                    onTap: () {
+                      _msgFocus.requestFocus();
+                      _toBottom();
+                    },
+                    child: Container(
+                      height: 48,
+                      padding: const EdgeInsets.symmetric(horizontal: 26),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: ll.surface,
+                        borderRadius: BorderRadius.circular(99),
+                        border: Border.all(color: ll.line),
+                      ),
+                      child: Text('Send a message', style: t(15, FontWeight.w500, ll.ink2)),
+                    ),
+                  ),
+                ),
+              ),
             if (chat)
               AnimatedPositioned(
                 duration: const Duration(milliseconds: 200),
                 left: 16,
                 right: 16,
                 bottom: composerBottom,
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(16, 6, 6, 6),
-                  decoration: BoxDecoration(
-                    color: ll.surface,
-                    borderRadius: BorderRadius.circular(26),
-                    border: Border.all(color: ll.line),
-                    boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 16, offset: Offset(0, 6))],
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          child: TextField(
-                            controller: _msg,
-                            focusNode: _msgFocus,
-                            minLines: 1,
-                            maxLines: 4,
-                            maxLength: 500,
-                            onTap: _toBottom,
-                            style: t(15, FontWeight.w600, ll.ink),
-                            decoration: InputDecoration(isCollapsed: true, border: InputBorder.none, counterText: '', hintText: 'Send a link or message', hintStyle: t(15, FontWeight.w500, ll.ink3)),
+                child: Offstage(
+                  offstage: !_msgFocus.hasFocus && _msg.text.isEmpty,
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(16, 6, 6, 6),
+                    decoration: BoxDecoration(
+                      color: ll.surface,
+                      borderRadius: BorderRadius.circular(26),
+                      border: Border.all(color: ll.line),
+                      boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 16, offset: Offset(0, 6))],
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: TextField(
+                              controller: _msg,
+                              focusNode: _msgFocus,
+                              minLines: 1,
+                              maxLines: 4,
+                              maxLength: 500,
+                              onTap: _toBottom,
+                              style: t(15, FontWeight.w600, ll.ink),
+                              decoration: InputDecoration(isCollapsed: true, border: InputBorder.none, counterText: '', hintText: 'Send a message or a link', hintStyle: t(15, FontWeight.w500, ll.ink3)),
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Tap(
-                        onTap: _send,
-                        semanticLabel: 'Send',
-                        child: Container(
-                          width: 44,
-                          height: 44,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(color: ll.blue, shape: BoxShape.circle),
-                          child: const LLIcon('right', size: 20, color: Colors.white, stroke: 2.2),
+                        const SizedBox(width: 8),
+                        Tap(
+                          onTap: _send,
+                          semanticLabel: 'Send',
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(color: ll.blue, shape: BoxShape.circle),
+                            child: LLIcon('right', size: 20, color: ll.onAccent, stroke: 2.2),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -928,12 +999,7 @@ class _Chat extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(13, 9, 13, 8),
                   decoration: BoxDecoration(
                     color: me ? ll.blue : ll.surface,
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(20),
-                      topRight: const Radius.circular(20),
-                      bottomLeft: Radius.circular(me ? 20 : 6),
-                      bottomRight: Radius.circular(me ? 6 : 20),
-                    ),
+                    borderRadius: BorderRadius.only(topLeft: const Radius.circular(20), topRight: const Radius.circular(20), bottomLeft: Radius.circular(me ? 20 : 6), bottomRight: Radius.circular(me ? 6 : 20)),
                   ),
                   child: body,
                 ),

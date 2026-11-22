@@ -131,6 +131,10 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
 
   /// littlelater://join?cid=… or https://…/join.html?cid=…
   void _onLink(Uri u) {
+    if (u.scheme == 'littlelater' && u.host == 'auth') {
+      auth.handleLink(u);
+      return;
+    }
     final cid = u.queryParameters['cid'] ?? '';
     if (cid.isEmpty) return;
     if (!store.signedIn) {
@@ -177,6 +181,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
     if (s == AppLifecycleState.paused) sync.flush();
     if (s == AppLifecycleState.resumed) {
       store.reloadFromDisk(); // pick up saves made from the share window
+      auth.onResumed();
       _checkIn();
       setState(() {}); // refresh "due now", greeting
     }
@@ -490,6 +495,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
                   builder: (context) => Dock2(
                     index: _tab,
                     plusOpen: _sheetOpen,
+                    showMic: !(_tab == 2 && _folder != null),
                     onTab: (i) {
                       AppScope.of(context).buzz(0);
                       _goTab(i);

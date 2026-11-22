@@ -138,6 +138,14 @@ NL parseNL(String text, {DateTime? now}) {
       if (h! < 8) h = h! + 12;
     });
   }
+  // "12:00", "7:30" with no am/pm (speech often writes times like this).
+  if (h == null) {
+    take(RegExp(r'(?<![\d:])(\d{1,2}):(\d{2})(?![\d:])'), (m) {
+      h = int.parse(m.group(1)!);
+      mi = int.parse(m.group(2)!);
+      if (h! < 8 && part == null) h = h! + 12;
+    });
+  }
   take(RegExp(r'\b(?:at\s+)?(noon|midnight)\b'), (m) {
     h = m.group(1) == 'noon' ? 12 : 23;
     mi = m.group(1) == 'noon' ? 0 : 59;

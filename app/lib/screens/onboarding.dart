@@ -31,7 +31,7 @@ class _OnboardingState extends State<Onboarding> {
   static const _copy = [
     ('Save it now.\nGet back to it later.', 'Links, reminders and to-dos from any app, brought back right when you need them.'),
     ('Share from\nany app', 'Tap Share, pick Little Later. It lands in the right folder.'),
-    ('Meet your\nmascot', 'Pick a look. Say hi every day, finish what you save, and it grows with you.'),
+    ('Meet your\nlittle buddy', 'Give it a name. It lives with you, grows when you come back each day, and cheers you on.'),
   ];
 
   @override
@@ -273,20 +273,7 @@ class _OnboardingState extends State<Onboarding> {
               scale: _step == 2 ? 1 : .9,
               duration: const Duration(milliseconds: 600),
               curve: Motion.spring,
-              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                for (final s in MascotStyle.values) ...[
-                  _Look(
-                    style: s,
-                    selected: st.mascotStyle == s,
-                    onTap: () {
-                      Haptics.tick();
-                      AppScope.of(context).store.setStyle(s);
-                      setState(() {});
-                    },
-                  ),
-                  if (s != MascotStyle.man) const SizedBox(width: 14),
-                ],
-              ]),
+              child: const Center(child: SizedBox(width: 170, height: 170, child: MascotView(stage: 3, staticMood: Mood.happy))),
             ),
           ),
         ),
@@ -305,34 +292,6 @@ class _OnboardingState extends State<Onboarding> {
         const SizedBox(height: 6),
         Text(label, style: t(11, FontWeight.w700, hi ? ll.blueInk : ll.ink3)),
       ]);
-}
-
-class _Look extends StatelessWidget {
-  const _Look({required this.style, required this.selected, required this.onTap});
-  final MascotStyle style;
-  final bool selected;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) {
-    final ll = LL.of(context);
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedScale(
-        scale: selected ? 1.12 : 1,
-        duration: const Duration(milliseconds: 500),
-        curve: Motion.spring,
-        child: AnimatedOpacity(
-          opacity: selected ? 1 : .5,
-          duration: const Duration(milliseconds: 300),
-          child: Column(children: [
-            SizedBox(width: 96, height: 106, child: MascotView(stage: 3, style: style, live: selected, staticMood: selected ? Mood.happy : Mood.idle)),
-            const SizedBox(height: 4),
-            Text(style.name[0].toUpperCase() + style.name.substring(1), style: t(13, FontWeight.w800, selected ? ll.blueInk : ll.ink2)),
-          ]),
-        ),
-      ),
-    );
-  }
 }
 
 class _Drift extends StatefulWidget {

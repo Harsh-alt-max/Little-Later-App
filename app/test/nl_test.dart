@@ -29,6 +29,8 @@ void main() {
     'parso sham 5 baje bank jana hai': 'Bank jana @11/23 17:00',
     'har somvar 10 baje team call': 'Team call @11/23 10:00 Mon',
     'remind me to call mom 9pm tomorrow': 'Call mom @11/22 21:00',
+    'कल 12:00 दूध लाना है': 'दूध लाना @11/22 12:00',
+    'meeting 7:30 tomorrow': 'Meeting @11/22 19:30',
   };
   cases.forEach((input, want) {
     test(input, () => expect(fmt(parseNL(input, now: now)), want));

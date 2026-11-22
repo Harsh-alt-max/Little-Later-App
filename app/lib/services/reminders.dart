@@ -187,7 +187,7 @@ class Reminders {
       _scheduled.clear();
       if (!store.notifOn) return;
       final now = DateTime.now();
-      final live = store.items.where((i) => !i.isDone && i.extra['msg'] != true && i.whenTs > 0 && !store.isMutedName(i.folder));
+      final live = store.items.where((i) => !i.isDone && i.extra['msg'] != true && i.extra['noAlert'] != true && i.whenTs > 0 && !store.isMutedName(i.folder));
       final up = live.where((i) => !i.repeats && i.whenTs > now.millisecondsSinceEpoch).toList()
         ..sort((a, b) => a.whenTs.compareTo(b.whenTs));
       final a = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();

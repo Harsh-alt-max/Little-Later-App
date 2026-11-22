@@ -87,7 +87,7 @@ class _TodayViewState extends State<TodayView> {
           onRefresh: s.app.refresh,
           child: ListView(
             controller: widget.scroll,
-            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            physics: const AlwaysScrollableScrollPhysics(parent: ClampingScrollPhysics()),
             padding: EdgeInsets.fromLTRB(0, top + 14, 0, 150),
             children: [
               Padding(

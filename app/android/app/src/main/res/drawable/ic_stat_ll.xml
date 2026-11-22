@@ -1,7 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Small white bookmark for the status bar (same shape as v1.2's notification icon). -->
+<!-- Status-bar icon: Lil peeking over a line (white silhouette, eyes cut out). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp" android:height="24dp"
-    android:viewportWidth="24" android:viewportHeight="24">
-    <path android:fillColor="#FFFFFFFF" android:pathData="M6,3h12v18l-6,-4 -6,4z" />
+    android:viewportWidth="100" android:viewportHeight="100">
+    <group android:rotation="-24" android:pivotX="36" android:pivotY="40">
+        <path android:fillColor="#FFFFFFFF" android:pathData="M29,40 a7,11 0 1,0 14,0 a7,11 0 1,0 -14,0z" />
+    </group>
+    <group android:rotation="24" android:pivotX="64" android:pivotY="40">
+        <path android:fillColor="#FFFFFFFF" android:pathData="M57,40 a7,11 0 1,0 14,0 a7,11 0 1,0 -14,0z" />
+    </group>
+    <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd"
+        android:pathData="M20,72 V61 a30,30 0 0,1 60,0 V72 z M34,60 a7,9 0 1,0 14,0 a7,9 0 1,0 -14,0z M52,60 a7,9 0 1,0 14,0 a7,9 0 1,0 -14,0z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M10,76 h80 v6 h-80z" />
 </vector>

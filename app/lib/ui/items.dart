@@ -4,8 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../data/models.dart';
-import '../data/store.dart';
-import '../screens/save_sheet.dart' show pickTime, pickRepeat, shareText;
+import '../screens/save_sheet.dart' show pickRepeat, shareText;
 import '../services/haptics.dart';
 import '../theme/tokens.dart';
 import 'kit.dart';
@@ -328,7 +327,7 @@ class _DetailState extends State<_Detail> {
           const SizedBox(height: 14),
           Group(margin: EdgeInsets.zero, children: [
             row('clock', 'When', it.whenTs > 0 ? whenLabel(it) : 'No time', () async {
-              final d = await pickTime(context, initial: it.whenTs > 0 ? DateTime.fromMillisecondsSinceEpoch(it.whenTs) : AppStore.now().add(const Duration(hours: 1)));
+              final d = await pickDateTime(context, initial: it.whenTs > 0 ? DateTime.fromMillisecondsSinceEpoch(it.whenTs) : null);
               if (d != null) st.setWhen(it.id, d);
             }),
             if (!link)
