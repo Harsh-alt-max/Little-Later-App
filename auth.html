@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sign in · Little Later for Chrome</title>
+  <link rel="icon" href="icon.png" />
+  <style>
+    @font-face{font-family:Geist;font-weight:400;src:url(fonts/Geist-Regular.ttf)}@font-face{font-family:Geist;font-weight:500;src:url(fonts/Geist-Medium.ttf)}@font-face{font-family:Geist;font-weight:600;src:url(fonts/Geist-SemiBold.ttf)}
+    * { box-sizing: border-box; margin: 0; }
+    body { min-height: 100vh; display: grid; place-items: center; background: #0a0a0c radial-gradient(80% 50% at 50% 0, rgba(255,159,126,.16), transparent 70%); color: #f4f1ec; font: 400 16px/1.5 Geist, system-ui, sans-serif; padding: 24px; }
+    .card { width: 100%; max-width: 400px; text-align: center; background: #121216; border-radius: 32px; padding: 36px 28px; }
+    img { width: 110px; height: 110px; object-fit: contain; filter: drop-shadow(0 10px 24px rgba(255,159,126,.3)); }
+    h1 { font-size: 28px; font-weight: 600; letter-spacing: -.03em; margin: 8px 0 6px; }
+    p { color: rgba(244,241,236,.6); }
+    button { margin-top: 24px; width: 100%; height: 54px; border: 0; border-radius: 99px; background: #ff9f7e; color: #17130f; font: 600 16px Geist, sans-serif; display: flex; gap: 10px; align-items: center; justify-content: center; cursor: pointer; }
+    button:disabled { opacity: .6; }
+    .err { color: #ff6b6b; margin-top: 16px; font-weight: 500; }
+    .ok { color: #ffb59a; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <img src="img/lil-happy.svg" alt="" />
+    <h1 id="h">Sign in for Chrome</h1>
+    <p id="p">Use the same Google account as your Little Later app.</p>
+    <button id="go" type="button">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="#4285F4" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.3z"/><path fill="#34A853" d="M12 22c2.7 0 5-.9 6.6-2.4l-3.2-2.5c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22z"/><path fill="#FBBC05" d="M6.4 14a6 6 0 0 1 0-3.9V7.5H3.1a10 10 0 0 0 0 9z"/><path fill="#EA4335" d="M12 6c1.5 0 2.8.5 3.8 1.5l2.9-2.9A10 10 0 0 0 3.1 7.5L6.4 10C7.2 7.8 9.4 6 12 6z"/></svg>
+      Continue with Google
+    </button>
+    <p id="err" class="err" role="alert"></p>
+  </main>
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
+    import { getAuth, GoogleAuthProvider, signInWithPopup } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
+
+    const EXT = new URLSearchParams(location.search).get('ext') || 'bnjempplmmjhmhefphffeamopfimiomb';
+    const app = initializeApp({ apiKey: 'AIzaSyB892SNxeXdCML_APdGchJzF6k6hAVtbsE', authDomain: 'littlelater-61969.firebaseapp.com', projectId: 'littlelater-61969' });
+    const auth = getAuth(app);
+    const $ = (id) => document.getElementById(id);
+
+    function toExtension(refreshToken) {
+      return new Promise((resolve, reject) => {
+        if (!window.chrome?.runtime?.sendMessage) return reject(new Error('Open this page in Chrome with the Little Later extension installed.'));
+        chrome.runtime.sendMessage(EXT, { type: 'll-auth', refreshToken }, (r) => {
+          if (chrome.runtime.lastError) return reject(new Error('Couldn’t find the Little Later extension. Install it, then try again.'));
+          r?.ok ? resolve(r) : reject(new Error(r?.error || 'Sign-in failed.'));
+        });
+      });
+    }
+
+    $('go').onclick = async () => {
+      $('err').textContent = '';
+      $('go').disabled = true;
+      try {
+        const res = await signInWithPopup(auth, new GoogleAuthProvider());
+        const r = await toExtension(res.user.refreshToken);
+        $('h').textContent = 'You’re in!';
+        $('p').innerHTML = 'Signed in as <b class="ok"></b>. Close this tab and click the Little Later button to save pages.';
+        $('p').querySelector('b').textContent = r.email;
+        $('go').hidden = true;
+        await auth.signOut(); // the extension keeps its own session
+      } catch (e) {
+        const c = e?.code || '';
+        $('err').textContent = c.includes('popup-closed') ? 'The Google window was closed. Try again.'
+          : c.includes('unauthorized-domain') ? 'This site isn’t allowed to sign in yet (the app owner needs to add it in Firebase).'
+          : e.message || 'Sign-in failed. Try again.';
+      } finally {
+        $('go').disabled = false;
+      }
+    };
+  </script>
+</body>
+</html>
