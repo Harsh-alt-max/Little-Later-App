@@ -111,7 +111,7 @@ NL parseNL(String text, {DateTime? now}) {
         part = isMorning(p) ? 9 : RegExp(r'^(do|du|दो)').hasMatch(p) ? 14 : RegExp(r'^(sh|शा)').hasMatch(p) ? 18 : 21;
       });
     }
-    take(u('$hb(parso|parson|परसों)$he'), (_) => dayOff = 2);
+    take(u('$hb(parso|parson|parsun|परसों|परसो|पर्सन|पर्सों)$he'), (_) => dayOff = 2);
     take(u('$hb(kal|कल)$he'), (_) => dayOff = 1);
     take(u('$hb(aaj|आज)$he'), (_) => dayOff = 0);
   }
@@ -210,6 +210,8 @@ String cleanTitle(String t) {
       .replaceAll(RegExp(r'\s+(hai|hain|he|h|है|हैं|hoga|होगा)\s*[.!।]?\s*$', caseSensitive: false, unicode: true), '')
       .replaceAll(RegExp(r'^\s*(ki|ko|ke|को|के)\s+', caseSensitive: false, unicode: true), '')
       .replaceAll(RegExp(r'\s+'), ' ')
+      // Leftover joiners from speech: "और …", "… and"
+      .replaceAll(RegExp(r'^\s*(?:और|aur|and|phir|फिर)\s+|\s+(?:और|aur|and|phir|फिर)\s*$', caseSensitive: false, unicode: true), '')
       .replaceFirst(_lead, '')
       .replaceAll(RegExp(r'\s+(?:and\s+so|etc|and\s+all|so\s+on)\.?$', caseSensitive: false), '')
       .replaceAll(RegExp(r'[.,;]+$'), '')
@@ -235,8 +237,8 @@ class Split {
   final String def;
 }
 
-final _timed = RegExp(r'baje|बजे|subah|dopahar|dophar|shaam|raat|सुबह|दोपहर|शाम|रात|\d\s*(?:am|pm)\b|\bat\s+\d|\bnoon\b|\bmidnight\b|\btonight\b|\bin\s+\d+\s*(?:min|hour|hr)|\b(?:morning|afternoon|evening)\b', caseSensitive: false);
-final _dayw = RegExp(r'(?<![\p{L}\p{M}])(kal|aaj|parso|parson|कल|आज|परसों|today|tonight|tomorrow|tmrw|tmr|(?:on\s+)?(?:mon|tues|wednes|thurs|fri|satur|sun)day)(?![\p{L}\p{M}])', caseSensitive: false, unicode: true);
+final _timed = RegExp(r'\d{1,2}:\d{2}|baje|बजे|subah|dopahar|dophar|shaam|raat|सुबह|दोपहर|शाम|रात|\d\s*(?:am|pm)\b|\bat\s+\d|\bnoon\b|\bmidnight\b|\btonight\b|\bin\s+\d+\s*(?:min|hour|hr)|\b(?:morning|afternoon|evening)\b', caseSensitive: false);
+final _dayw = RegExp(r'(?<![\p{L}\p{M}])(kal|aaj|parso|parson|कल|आज|परसों|पर्सन|today|tonight|tomorrow|tmrw|tmr|(?:on\s+)?(?:mon|tues|wednes|thurs|fri|satur|sun)day)(?![\p{L}\p{M}])', caseSensitive: false, unicode: true);
 
 /// "dairy at 7 am and school at 10 pm" → 2 reminders (or one to-do list).
 /// "buy milk, eggs and bread" → a shopping list. Null for a single thing.
@@ -324,4 +326,29 @@ Item? linkTarget(String text, List<Item> items, {Item? recent}) {
     }
   }
   return score > 0 ? best : null;
+}
+
+
+/// Join speech heard in pieces without repeating words: "kal 3 baje" +
+/// "3 baje doodh lana" → "kal 3 baje doodh lana".
+String mergeSpeech(String acc, String seg) {
+  acc = acc.trim();
+  seg = seg.trim();
+  if (acc.isEmpty) return seg;
+  if (seg.isEmpty) return acc;
+  final al = acc.toLowerCase(), sl = seg.toLowerCase();
+  if (al.endsWith(sl) || al.contains(sl)) return acc;
+  if (sl.startsWith(al)) return seg;
+  final aw = acc.split(RegExp(r'\s+')), sw = seg.split(RegExp(r'\s+'));
+  for (var k = aw.length < sw.length ? aw.length : sw.length; k > 0; k--) {
+    var same = true;
+    for (var i = 0; i < k; i++) {
+      if (aw[aw.length - k + i].toLowerCase() != sw[i].toLowerCase()) {
+        same = false;
+        break;
+      }
+    }
+    if (same) return [...aw, ...sw.sublist(k)].join(' ');
+  }
+  return '$acc $seg';
 }

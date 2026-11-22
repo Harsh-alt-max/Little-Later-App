@@ -434,7 +434,7 @@ class SyncService {
       await _pushCollab(f);
       return null;
     } on FirebaseException catch (e) {
-      if (e.code == 'permission-denied') return 'Confirm your email first (check your inbox), or sign in with Google, then open the link again.';
+      if (e.code == 'permission-denied') return 'needs-verify';
       return 'Couldn’t open that shared folder. Check your internet.';
     } catch (_) {
       return 'Couldn’t open that shared folder. Check your internet.';

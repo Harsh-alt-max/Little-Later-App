@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../services/festival.dart';
 import '../theme/tokens.dart';
 import 'mascot_svg.dart';
 
@@ -207,6 +208,7 @@ class _MascotViewState extends State<MascotView> with TickerProviderStateMixin {
       cover: widget.cover,
       zzColor: '#${(ll.ink3.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}',
       accent: '#${(ll.blue.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}',
+      hat: Festivals.i.now?.hat ?? '',
     );
     final pic = SvgPicture.string(svg, fit: BoxFit.contain, allowDrawingOutsideViewBox: true);
     final floaty = widget.stage >= 4;

@@ -98,6 +98,13 @@ class LL extends ThemeExtension<LL> {
   @override
   LL copyWith() => this;
 
+  /// Same look with a festival accent colour.
+  LL withAccent(Color a, Color accentInk) => LL(
+        dark: dark, bg: bg, surface: surface, surface2: surface2, line: line, ink: ink, ink2: ink2, ink3: ink3, onInk: onInk,
+        blue: a, blue2: a, blueSoft: a.withValues(alpha: dark ? .16 : .12), blueInk: accentInk, headA: a.withValues(alpha: .14), headB: headB,
+        glass: glass, stripe: stripe, shadow: shadow,
+      );
+
   @override
   LL lerp(LL? other, double t) => t < .5 ? this : (other ?? this);
 }

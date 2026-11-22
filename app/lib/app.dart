@@ -13,6 +13,7 @@ import 'mascot/mascot_view.dart';
 import 'screens/folders_screen.dart';
 import 'screens/onboarding.dart';
 import 'services/auth.dart';
+import 'services/festival.dart';
 import 'services/reminders.dart';
 import 'services/sync.dart';
 import 'services/link_meta.dart';
@@ -47,9 +48,11 @@ class LittleLaterApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: store,
+    listenable: Listenable.merge([store, Festivals.i]),
     builder: (context, _) {
-      final ll = store.darkTheme ? LL.darkTheme : LL.light;
+      var ll = store.darkTheme ? LL.darkTheme : LL.light;
+      final fest = Festivals.i.now;
+      if (fest?.accent != null) ll = ll.withAccent(Color(fest!.accent!), Color(fest.accentInk ?? fest.accent!));
       return MaterialApp(
         title: 'Little Later',
         debugShowCheckedModeBanner: false,
@@ -92,6 +95,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
   bool _sheetOpen = false;
   final List<StreamSubscription> _subs = [];
   String? _pendingJoin;
+  DateTime? _verifySentAt;
 
   AppStore get store => widget.store;
   @override
@@ -148,8 +152,24 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
 
   Future<void> _join(Uri u) async {
     final cid = u.queryParameters['cid'] ?? '';
-    final err = await sync.join(cid, name: u.queryParameters['join'] ?? '', by: u.queryParameters['by'] ?? '');
+    Future<String?> go() => sync.join(cid, name: u.queryParameters['join'] ?? '', by: u.queryParameters['by'] ?? '');
+    var err = await go();
+    if (err == 'needs-verify') {
+      // Maybe they just confirmed: refresh and try once more.
+      if (await auth.checkVerified()) err = await go();
+    }
     if (!mounted) return;
+    if (err == 'needs-verify') {
+      final now = DateTime.now();
+      final again = _verifySentAt == null || now.difference(_verifySentAt!) > const Duration(minutes: 3);
+      final sent = again ? await auth.resendVerification() : null;
+      if (again) _verifySentAt = now;
+      _pendingJoin = u.toString();
+      _toast.show(sent == null
+          ? 'Confirm your email to join. We sent a link to ${store.userEmail} (check Spam too). Then open the invite again, or sign in with Google instead.'
+          : 'Confirm your email to join, or sign out and sign in with Google instead.');
+      return;
+    }
     if (err != null) {
       _toast.show(err);
       return;
@@ -179,10 +199,18 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
   @override
   void didChangeAppLifecycleState(AppLifecycleState s) {
     if (s == AppLifecycleState.paused) sync.flush();
+    if (s == AppLifecycleState.paused) Festivals.i.applyIcon();
     if (s == AppLifecycleState.resumed) {
       store.reloadFromDisk(); // pick up saves made from the share window
       auth.onResumed();
+      Festivals.i.refresh();
       _checkIn();
+      // Came back from confirming the email: try the invite again.
+      if (_pendingJoin != null && store.signedIn) {
+        final l = Uri.parse(_pendingJoin!);
+        _pendingJoin = null;
+        _join(l);
+      }
       setState(() {}); // refresh "due now", greeting
     }
   }

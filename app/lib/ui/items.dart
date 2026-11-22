@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../data/models.dart';
+import '../data/store.dart' show newId;
 import '../screens/save_sheet.dart' show pickRepeat, shareText;
 import '../services/haptics.dart';
 import '../theme/tokens.dart';
@@ -294,7 +295,7 @@ class _DetailState extends State<_Detail> {
             RoundBtn(icon: 'x', size: 36, iconSize: 16, onTap: () => Navigator.of(context).maybePop()),
           ]),
           if (it.note.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 10), child: Text(it.note, style: t(15, FontWeight.w400, ll.ink2, h: 1.45))),
-          if (it.tasks.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 10), child: StepsList(item: it)),
+          if (it.kind == ItemKind.todoList) Padding(padding: const EdgeInsets.only(top: 10), child: EditSteps(item: it)),
           const SizedBox(height: 18),
           Row(children: [
             act(it.isDone ? 'back' : 'check', it.isDone ? 'Not done' : 'Done', () {
@@ -362,5 +363,110 @@ class _DetailState extends State<_Detail> {
         ]),
       ]),
     );
+  }
+}
+
+
+/// Steps you can fix later: tick, rename, remove, add.
+class EditSteps extends StatefulWidget {
+  const EditSteps({super.key, required this.item});
+  final Item item;
+  @override
+  State<EditSteps> createState() => _EditStepsState();
+}
+
+class _EditStepsState extends State<EditSteps> {
+  final _ctl = <String, TextEditingController>{};
+  final _add = TextEditingController();
+
+  TextEditingController _c(TodoTask tk) => _ctl.putIfAbsent(tk.id, () => TextEditingController(text: tk.text));
+
+  @override
+  void dispose() {
+    for (final c in _ctl.values) {
+      c.dispose();
+    }
+    _add.dispose();
+    super.dispose();
+  }
+
+  void _save() => AppScope.of(context).store.touchItem(widget.item);
+
+  @override
+  Widget build(BuildContext context) {
+    final ll = LL.of(context);
+    final it = widget.item;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      for (final tk in it.tasks)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(children: [
+            GestureDetector(
+              onTap: () {
+                Haptics.tick();
+                AppScope.of(context).store.toggleTask(it.id, tk.id);
+                setState(() {});
+              },
+              child: Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: tk.done ? ll.blue : Colors.transparent, border: Border.all(color: tk.done ? ll.blue : ll.ink3, width: 1.5)),
+                alignment: Alignment.center,
+                child: tk.done ? LLIcon('check', size: 12, color: ll.onAccent, stroke: 3) : null,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: TextField(
+                controller: _c(tk),
+                maxLines: null,
+                style: t(15, FontWeight.w400, tk.done ? ll.ink3 : ll.ink),
+                onChanged: (v) {
+                  tk.text = v;
+                },
+                onEditingComplete: _save,
+                onTapOutside: (_) {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  _save();
+                },
+                decoration: const InputDecoration.collapsed(hintText: 'Step'),
+              ),
+            ),
+            Tap(
+              onTap: () {
+                it.tasks.removeWhere((x) => x.id == tk.id);
+                _save();
+                setState(() {});
+              },
+              child: Padding(padding: const EdgeInsets.all(8), child: Opacity(opacity: .5, child: LLIcon('x', size: 14, color: ll.ink))),
+            ),
+          ]),
+        ),
+      Container(
+        margin: const EdgeInsets.only(top: 6),
+        height: 44,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(color: ll.chip, borderRadius: BorderRadius.circular(14)),
+        child: Row(children: [
+          Opacity(opacity: .5, child: LLIcon('plus', size: 15, color: ll.ink)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              controller: _add,
+              textInputAction: TextInputAction.next,
+              style: t(15, FontWeight.w400, ll.ink),
+              onSubmitted: (v) {
+                if (v.trim().isEmpty) return;
+                it.tasks.add(TodoTask(id: newId(), text: v.trim()));
+                _add.clear();
+                _save();
+                setState(() {});
+              },
+              decoration: InputDecoration.collapsed(hintText: 'Add a step, press enter', hintStyle: t(15, FontWeight.w400, ll.ink3)),
+            ),
+          ),
+        ]),
+      ),
+    ]);
   }
 }

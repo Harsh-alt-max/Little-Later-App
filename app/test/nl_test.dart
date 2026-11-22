@@ -53,6 +53,16 @@ void main() {
     expect(s.listTitle, 'Shopping list');
     expect(s.parts.map((p) => p.title).toList(), ['Milk', 'Eggs', 'Bread']);
   });
+  test('messy hindi speech splits into real reminders', () {
+    final s = splitTasks('कल 1:00 बजे मुझे यहां जाना है और 3:00 मुझे घर जाना है और शाम के 5:00 बजे', now: now)!;
+    expect(s.parts.map((p) => p.title).toList(), ['यहां जाना', 'घर जाना']);
+  });
+  test('speech heard in pieces is joined without repeats', () {
+    expect(mergeSpeech('kal 3 baje', '3 baje doodh lana'), 'kal 3 baje doodh lana');
+    expect(mergeSpeech('3:00 बजे', '3:00 बजे दोपहर के'), '3:00 बजे दोपहर के');
+    expect(mergeSpeech('call mom', 'call mom'), 'call mom');
+    expect(mergeSpeech('gym 7am', 'and dinner 9pm'), 'gym 7am and dinner 9pm');
+  });
   test('things that belong together stay together', () {
     expect(splitTasks('salt and pepper', now: now), isNull);
     expect(splitTasks('call mom and dad tonight', now: now), isNull);

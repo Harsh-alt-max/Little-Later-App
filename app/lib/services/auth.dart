@@ -51,8 +51,10 @@ class AuthService {
     if (u == null) return false;
     try {
       await u.reload();
+      // A fresh token carries the new "verified" flag to the database rules.
+      await FirebaseAuth.instance.currentUser?.getIdToken(true);
     } catch (_) {}
-    return FirebaseAuth.instance.currentUser?.emailVerified ?? false;
+    return verified || (FirebaseAuth.instance.currentUser?.emailVerified ?? false);
   }
 
   Future<String?> resendVerification() async {

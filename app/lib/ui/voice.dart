@@ -98,10 +98,10 @@ class _VoiceState extends State<_Voice> with TickerProviderStateMixin {
           if (!mounted || _phase != _Phase.listening) return;
           _cur = r.recognizedWords;
           if (r.finalResult) {
-            _acc = '$_acc $_cur'.trim();
+            _acc = mergeSpeech(_acc, _cur);
             _cur = '';
           }
-          _text.text = '$_acc $_cur'.trim();
+          _text.text = mergeSpeech(_acc, _cur);
           _lil.play(MascotAct.squish);
           // Done when nothing new has been heard for 2 seconds.
           _silence?.cancel();
@@ -125,7 +125,7 @@ class _VoiceState extends State<_Voice> with TickerProviderStateMixin {
   void _sessionEnded() {
     if (!mounted || _closed || _phase != _Phase.listening || _restarting) return;
     if (_cur.isNotEmpty) {
-      _acc = '$_acc $_cur'.trim();
+      _acc = mergeSpeech(_acc, _cur);
       _cur = '';
     }
     final waited = DateTime.now().difference(_began);
@@ -226,7 +226,7 @@ class _VoiceState extends State<_Voice> with TickerProviderStateMixin {
       _Phase.listening => 'Speak, then pause. Tap the words to fix them.',
       _Phase.ready => 'Got it! Adding in a few seconds. Tap the words to fix them.',
       _Phase.editing => 'Editing. It adds 1 second after you stop typing.',
-      _Phase.failed => v.isEmpty ? 'Couldn’t hear anything. Type it here instead, or try again.' : 'Tap the words to fix them.',
+      _Phase.failed => v.isEmpty ? 'Couldn’t hear anything. Type it here, or tap the mic on your keyboard and speak.' : 'Tap the words to fix them.',
     };
     final addLabel = plan?.link != null
         ? 'Set time'
