@@ -8,8 +8,6 @@ import '../mascot/mascot_svg.dart';
 import '../services/haptics.dart';
 import '../theme/tokens.dart';
 import '../widgets/eyes_refresh.dart';
-import '../services/festival.dart';
-import 'festive.dart';
 import 'items.dart';
 import 'kit.dart';
 import 'save.dart';
@@ -63,7 +61,7 @@ class _TodayViewState extends State<TodayView> {
     final s = AppScope.of(context);
     final st = s.store;
     return ListenableBuilder(
-      listenable: Listenable.merge([st, Festivals.i]),
+      listenable: st,
       builder: (context, _) {
         final q = personalQueue(st);
         final hero = q.isEmpty ? null : q.first;
@@ -71,8 +69,7 @@ class _TodayViewState extends State<TodayView> {
         final name = st.userName.isEmpty ? '' : ', ${st.userName.split(' ').first}';
         final strong = t(30, FontWeight.w600, ll.ink, ls: -.03, h: 1.2), soft = t(30, FontWeight.w600, ll.ink3, ls: -.03, h: 1.2);
         final parts = <(int, String, String)>[if (links > 0) (links, 'link', 'links'), if (tds > 0) (tds, 'to-do', 'to-dos'), if (rem > 0) (rem, 'reminder', 'reminders')];
-        final fest = Festivals.i.now;
-        final spans = <InlineSpan>[TextSpan(text: '${fest != null && fest.greeting.isNotEmpty ? fest.greeting : _greeting()}$name. ', style: soft)];
+        final spans = <InlineSpan>[TextSpan(text: '${_greeting()}$name. ', style: soft)];
         if (q.isEmpty) {
           spans.addAll([TextSpan(text: 'Nothing', style: strong), TextSpan(text: ' is waiting. Enjoy the day.', style: soft)]);
         } else {
@@ -277,7 +274,6 @@ class _TodayViewState extends State<TodayView> {
                 ],
               ),
             ),
-            if (fest != null && (fest.snow || fest.confetti)) Positioned(left: 0, right: 0, top: 0, height: 320, child: FestiveFall(confetti: fest.confetti)),
           ],
         );
       },

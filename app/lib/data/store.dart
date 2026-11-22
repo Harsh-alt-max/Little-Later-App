@@ -730,7 +730,7 @@ class AppStore extends ChangeNotifier {
   }
 
   void _prefsFrom(Map p) {
-    darkTheme = p['dark'] != false;
+    darkTheme = true; // one look: Midnight
     haptics = p['haptics'] != false;
     notifOn = p['notif'] != false;
     quietOn = p['quiet'] != false;

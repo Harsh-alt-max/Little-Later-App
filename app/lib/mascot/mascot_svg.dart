@@ -13,20 +13,6 @@ const kLilOutfitCost = [0, 5, 10, 18];
 
 const _lilA = '#FFCDB8', _lilB = '#EE7E5E', _ear = '#F59274', _ink = '#0B0E22';
 
-/// Festival hats, drawn over everything else.
-String hatSvg(String hat) {
-  if (hat == 'santa') {
-    return '<path d="M62 52 C66 20 96 6 124 14 C140 18 152 30 156 46 L150 50 C146 36 136 28 124 26 C112 32 106 46 104 56 Z" fill="#D9363E"/>'
-        '<path d="M56 50 Q100 34 146 50 L148 62 Q100 46 54 62 Z" fill="#FFFFFF"/>'
-        '<circle cx="154" cy="50" r="10" fill="#FFFFFF"/>';
-  }
-  if (hat == 'party') {
-    return '<path d="M80 48 L100 0 L120 48 Z" fill="#F5C451"/><path d="M86 34 L114 34 L117 41 L83 41 Z" fill="#FF7FB0"/><path d="M93 18 L107 18 L109 24 L91 24 Z" fill="#7E8CFF"/>'
-        '<circle cx="100" cy="0" r="7" fill="#FF9F7E"/><circle cx="40" cy="30" r="4" fill="#7ED492"/><circle cx="168" cy="26" r="4" fill="#FF7FB0"/><circle cx="160" cy="62" r="3" fill="#F5C451"/><circle cx="34" cy="70" r="3" fill="#5FC8E8"/>';
-  }
-  return '';
-}
-
 String outfitSvg(int n, {String accent = '#FF9F7E'}) {
   switch (n) {
     case 1:
@@ -50,7 +36,6 @@ String mascotSvg({
   String zzColor = '#8A90A8',
   String accent = '#FF9F7E',
   bool scaleByStage = false,
-  String hat = '',
 }) {
   final ear = 'fill="$_ear"';
   final String ears;
@@ -82,7 +67,7 @@ String mascotSvg({
   final zz = mood == Mood.sleep ? '<text x="162" y="40" font-size="26" font-weight="700" fill="$zzColor" font-family="sans-serif">z</text><text x="180" y="18" font-size="18" font-weight="700" fill="$zzColor" font-family="sans-serif">z</text>' : '';
   final paws = cover ? '<ellipse cx="74" cy="112" rx="30" ry="22" fill="$_ear"/><ellipse cx="126" cy="112" rx="30" ry="22" fill="$_ear"/>' : '';
   final sc = scaleByStage ? const [.7, .8, .9, 1.0, 1.1][stage.clamp(1, 5) - 1] : 1.0;
-  final body = '$ears<rect x="28" y="40" width="144" height="146" rx="64" fill="url(#b)"/><rect x="28" y="40" width="144" height="146" rx="64" fill="url(#h)"/>$eyes$paws${outfitSvg(outfit, accent: accent)}${hatSvg(hat)}$zz';
+  final body = '$ears<rect x="28" y="40" width="144" height="146" rx="64" fill="url(#b)"/><rect x="28" y="40" width="144" height="146" rx="64" fill="url(#h)"/>$eyes$paws${outfitSvg(outfit, accent: accent)}$zz';
   return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-6 -6 212 212">'
       '<defs><linearGradient id="b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="$_lilA"/><stop offset="1" stop-color="$_lilB"/></linearGradient>'
       '<radialGradient id="h" cx=".35" cy=".2" r=".5"><stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>'

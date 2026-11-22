@@ -9,7 +9,6 @@ import 'config.dart';
 import 'data/store.dart';
 import 'screens/save_sheet.dart';
 import 'services/auth.dart';
-import 'services/festival.dart';
 import 'services/haptics.dart';
 import 'services/reminders.dart';
 import 'services/sync.dart';
@@ -24,8 +23,6 @@ Future<({AppStore store, bool firebase})> _boot() async {
     firebase = true;
   } catch (_) {}
   final store = await AppStore.load(demo: kDemo);
-  await Festivals.i.load();
-  Festivals.i.refresh();
   Haptics.enabled = store.haptics;
   store.addListener(() => Haptics.enabled = store.haptics);
   shareText = (text) => SharePlus.instance.share(ShareParams(text: text));

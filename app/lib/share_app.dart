@@ -114,7 +114,7 @@ class _ShareAppState extends State<ShareApp> implements AppActions {
 
   @override
   Widget build(BuildContext context) {
-    final ll = store.darkTheme ? LL.darkTheme : LL.light;
+    const ll = LL.darkTheme;
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: buildTheme(ll).copyWith(scaffoldBackgroundColor: Colors.transparent),

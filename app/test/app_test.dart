@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:little_later/app.dart';
 import 'package:little_later/data/models.dart';
 import 'package:little_later/data/store.dart';
-import 'package:little_later/services/festival.dart';
 import 'package:little_later/services/auth.dart';
 import 'package:little_later/services/reminders.dart';
 import 'package:little_later/services/sync.dart';
@@ -74,7 +73,7 @@ void main() {
     expect(s.inQuiet(DateTime(2026, 11, 14, 23, 0)), isFalse); // Saturday
   });
 
-  for (final dark in [true, false]) {
+  for (final dark in [true]) {
     final look = dark ? 'midnight' : 'daylight';
     testWidgets('walk through the app ($look)', (tester) async {
       final store = demoStore(dark: dark);
@@ -167,14 +166,6 @@ void main() {
       await shot(tester, '${look}_8_ring');
       await tester.tap(find.text('In 15 min'));
       await settle(tester, 1200);
-      // A festival look (downloaded JSON), tried from Profile.
-      Festivals.i.useJson('{"festivals":[{"id":"x","name":"Christmas","greeting":"Merry Christmas","accent":"#E5484D","accentInk":"#FF8A8F","hat":"santa","snow":true}]}');
-      Festivals.i.preview('x');
-      await settle(tester, 800);
-      expect(find.textContaining('Merry Christmas'), findsOneWidget);
-      await shot(tester, '${look}_9_christmas');
-      Festivals.i.preview(null);
-      await settle(tester, 300);
     });
   }
 }

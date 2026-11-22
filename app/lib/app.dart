@@ -13,7 +13,6 @@ import 'mascot/mascot_view.dart';
 import 'screens/folders_screen.dart';
 import 'screens/onboarding.dart';
 import 'services/auth.dart';
-import 'services/festival.dart';
 import 'services/reminders.dart';
 import 'services/sync.dart';
 import 'services/link_meta.dart';
@@ -48,11 +47,9 @@ class LittleLaterApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([store, Festivals.i]),
+    listenable: store,
     builder: (context, _) {
-      var ll = store.darkTheme ? LL.darkTheme : LL.light;
-      final fest = Festivals.i.now;
-      if (fest?.accent != null) ll = ll.withAccent(Color(fest!.accent!), Color(fest.accentInk ?? fest.accent!));
+      const ll = LL.darkTheme;
       return MaterialApp(
         title: 'Little Later',
         debugShowCheckedModeBanner: false,
@@ -199,11 +196,9 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver implements Ap
   @override
   void didChangeAppLifecycleState(AppLifecycleState s) {
     if (s == AppLifecycleState.paused) sync.flush();
-    if (s == AppLifecycleState.paused) Festivals.i.applyIcon();
     if (s == AppLifecycleState.resumed) {
       store.reloadFromDisk(); // pick up saves made from the share window
       auth.onResumed();
-      Festivals.i.refresh();
       _checkIn();
       // Came back from confirming the email: try the invite again.
       if (_pendingJoin != null && store.signedIn) {
