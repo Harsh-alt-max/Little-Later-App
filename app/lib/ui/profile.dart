@@ -137,6 +137,12 @@ class ProfileView extends StatelessWidget {
             ]),
             Group(children: [
               SetRow(icon: 'chrome', title: 'Chrome extension', sub: 'Save from your laptop', trailingText: 'Get it', onTap: () => launchUrl(Uri.parse(siteUrl), mode: LaunchMode.externalApplication)),
+              SetRow(
+                icon: 'mail',
+                title: 'Send feedback',
+                sub: 'Early access: tell us what to fix or add',
+                onTap: () => launchUrl(Uri(scheme: 'mailto', path: 'harshksingh100@gmail.com', query: 'subject=${Uri.encodeComponent('Little Later feedback')}'), mode: LaunchMode.externalApplication),
+              ),
               SetRow(icon: 'link', title: 'Save from other apps', sub: 'Share from Instagram, YouTube… → Little Later', onTap: () => s.toast.show('In any app, tap Share → Little Later')),
             ]),
             Group(children: [
