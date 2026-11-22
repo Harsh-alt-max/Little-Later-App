@@ -240,6 +240,9 @@ class Split {
 final _timed = RegExp(r'\d{1,2}:\d{2}|baje|बजे|subah|dopahar|dophar|shaam|raat|सुबह|दोपहर|शाम|रात|\d\s*(?:am|pm)\b|\bat\s+\d|\bnoon\b|\bmidnight\b|\btonight\b|\bin\s+\d+\s*(?:min|hour|hr)|\b(?:morning|afternoon|evening)\b', caseSensitive: false);
 final _dayw = RegExp(r'(?<![\p{L}\p{M}])(kal|aaj|parso|parson|कल|आज|परसों|पर्सन|today|tonight|tomorrow|tmrw|tmr|(?:on\s+)?(?:mon|tues|wednes|thurs|fri|satur|sun)day)(?![\p{L}\p{M}])', caseSensitive: false, unicode: true);
 
+/// True when [text] names a day (kal, tomorrow, Monday…).
+bool mentionsDay(String text) => _dayw.hasMatch(text);
+
 /// "dairy at 7 am and school at 10 pm" → 2 reminders (or one to-do list).
 /// "buy milk, eggs and bread" → a shopping list. Null for a single thing.
 Split? splitTasks(String text, {DateTime? now}) {

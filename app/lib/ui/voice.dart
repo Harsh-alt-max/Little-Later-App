@@ -11,7 +11,9 @@ import '../mascot/mascot_svg.dart';
 import '../mascot/mascot_view.dart';
 import '../services/haptics.dart';
 import '../theme/tokens.dart';
+import '../data/store.dart';
 import 'actions.dart';
+import 'draft.dart';
 import 'kit.dart';
 import 'save.dart' show NLController, PlanPreview;
 
@@ -49,7 +51,12 @@ class _VoiceState extends State<_Voice> with TickerProviderStateMixin {
   _Phase _phase = _Phase.starting;
   bool _editing = false;
   Timer? _quiet;
-  String? _mode; // reminders | list (for sentences with several things)
+  String? _mode; // reminders | list
+  // Once you change a row by hand, the rows are kept as they are (_pinned);
+  // anything you say after that is added below them.
+  List<Draft>? _pinned;
+  String _pinBase = '';
+  String? _listTitle;
   bool _closed = false;
 
   // The phone's recogniser stops after every pause. We keep what was heard
@@ -186,16 +193,85 @@ class _VoiceState extends State<_Voice> with TickerProviderStateMixin {
 
   void _toggleMic() => _phase == _Phase.listening || _phase == _Phase.starting ? _pause() : _resume();
 
+  ({List<Draft> rows, String listTitle, String mode}) get _auto => draftsFor(AppScope.of(context).store, _text.text);
+
+  List<Draft> _rows(AppStore st) {
+    final v = _text.text;
+    if (_pinned == null) return draftsFor(st, v).rows;
+    final delta = v.startsWith(_pinBase) ? v.substring(_pinBase.length) : '';
+    final extra = draftsFor(st, delta).rows;
+    // "…phir 7 baje dinner" said later belongs to the same day as the rows above.
+    final day = _pinned!.map((d) => d.when).whereType<DateTime>().lastOrNull;
+    if (day != null && !mentionsDay(delta)) {
+      for (final d in extra) {
+        final w = d.when;
+        if (w != null && d.repeat.isEmpty) d.when = DateTime(day.year, day.month, day.day, w.hour, w.minute);
+      }
+    }
+    return [..._pinned!, ...extra];
+  }
+
+  String get _modeNow => _mode ?? _auto.mode;
+  String get _titleNow => _listTitle ?? _auto.listTitle;
+
+  List<Draft> _pin() {
+    final st = AppScope.of(context).store;
+    final rows = [for (final d in _rows(st)) d.copy()];
+    _listTitle ??= _auto.listTitle;
+    _mode ??= _auto.mode;
+    _pinned = rows;
+    _pinBase = _text.text;
+    return rows;
+  }
+
+  Future<void> _editRow(int i) async {
+    _pause();
+    final rows = _pin();
+    final r = await editDraftSheet(context, draft: rows[i], step: _modeNow == 'list', suggest: reminderTimes(rows)[i]);
+    if (!mounted || !r.changed) return;
+    setState(() {
+      if (r.row == null) {
+        rows.removeAt(i);
+      } else {
+        rows[i] = r.row!;
+      }
+    });
+  }
+
+  Future<void> _addRow() async {
+    _pause();
+    final rows = _pin();
+    final times = reminderTimes(rows);
+    final suggest = times.isEmpty ? defaultReminderTime() : times.last.add(const Duration(hours: 1));
+    final r = await editDraftSheet(context, step: _modeNow == 'list' && rows.isNotEmpty, suggest: suggest);
+    if (!mounted || r.row == null) return;
+    setState(() => rows.add(r.row!));
+  }
+
+  Future<void> _renameList() async {
+    _pause();
+    _pin();
+    final v = await renameListSheet(context, _titleNow);
+    if (v != null && mounted) setState(() => _listTitle = v);
+  }
+
   void _commit() {
     if (_closed) return;
+    final s = AppScope.of(context);
     final v = _text.text.trim();
-    if (v.isEmpty) return;
+    final link = _pinned == null && v.isNotEmpty ? planFor(s.store, v).link : null;
+    final rows = _rows(s.store);
+    if (link == null && rows.isEmpty) return;
+    final mode = _modeNow, title = _titleNow;
     _closed = true;
     _session++;
     _stt.stop();
-    final s = AppScope.of(context);
     Navigator.of(context).pop();
-    addFromText(s, v, mode: _mode, folder: widget.folder);
+    if (link != null) {
+      addFromText(s, v, folder: widget.folder);
+    } else {
+      addDrafts(s, rows, mode: mode, listTitle: title, folder: widget.folder);
+    }
     Haptics.medium();
   }
 
@@ -226,106 +302,181 @@ class _VoiceState extends State<_Voice> with TickerProviderStateMixin {
     final st = AppScope.of(context).store;
     final hi = _lang == 'hi-IN';
     final v = _text.text;
-    final plan = v.trim().isEmpty ? null : planFor(st, v);
+    final link = _pinned == null && v.trim().isNotEmpty ? planFor(st, v).link : null;
+    final rows = link == null ? _rows(st) : const <Draft>[];
+    final mode = _modeNow;
     final status = switch (_phase) {
       _Phase.starting => 'Getting the mic ready…',
       _Phase.listening => v.isEmpty ? 'Take your time. I keep listening until you tap Add.' : 'Still listening. Pause as long as you like, then tap Add.',
-      _Phase.paused => _editing ? 'Fix the words, then tap Add. Tap the mic to say more.' : v.isEmpty ? 'Mic paused. Tap the mic to talk.' : 'Mic paused. Tap the mic to say more, or tap Add.',
-      _Phase.failed => 'The mic isn’t available. Type it here, or use the mic on your keyboard.',
+      _Phase.paused =>
+        _editing
+            ? 'Fix the words, then tap Add. Tap the mic to say more.'
+            : v.isEmpty
+            ? 'Mic paused. Tap the mic to talk.'
+            : 'Mic paused. Tap the mic to say more, or tap Add.',
+      _Phase.failed => 'The mic isn’t available. Type above, or add them with +.',
     };
-    final addLabel = plan?.link != null
+    final addLabel = link != null
         ? 'Set time'
-        : plan?.split != null
-            ? ((_mode ?? plan!.split!.def) == 'list' ? 'Add list' : 'Add ${plan!.split!.parts.length}')
-            : 'Add';
+        : mode == 'list'
+        ? 'Add list'
+        : rows.length > 1
+        ? 'Add ${rows.length}'
+        : 'Add';
+    final canAdd = link != null || rows.isNotEmpty;
     final editing = _editing || _phase == _Phase.failed;
-    return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Row(children: [
-        const Spacer(),
-        Tap(
-          onTap: _switchLang,
-          child: Container(
-            height: 34,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(color: ll.chip, borderRadius: BorderRadius.circular(99)),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Text(hi ? 'हि' : 'EN', style: t(13, FontWeight.w600, ll.ink)),
-              const SizedBox(width: 6),
-              Text(hi ? 'Hindi' : 'English', style: t(11, FontWeight.w500, ll.ink2)),
-            ]),
-          ),
-        ),
-      ]),
-      SizedBox(
-        height: 130,
-        child: Center(
-          child: AnimatedBuilder(
-            animation: _ears,
-            builder: (_, c) => Transform.scale(scale: _phase == _Phase.listening ? 1 + .03 * _ears.value : 1, child: c),
-            child: SizedBox(width: 124, height: 124, child: MascotView(stage: 3, controller: _lil, outfit: st.outfitNow)),
-          ),
-        ),
-      ),
-      const SizedBox(height: 6),
-      GestureDetector(
-        onTap: () {
-          _pause(editing: true);
-          _focus.requestFocus();
-        },
-        child: editing
-            ? Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(color: ll.chip, borderRadius: BorderRadius.circular(18)),
-                child: TextField(
-                  controller: _text,
-                  focusNode: _focus,
-                  autofocus: _editing,
-                  minLines: 1,
-                  maxLines: 4,
-                  textAlign: TextAlign.center,
-                  textInputAction: TextInputAction.done,
-                  onChanged: (_) => setState(() {}),
-                  onSubmitted: (_) => _commit(),
-                  style: t(20, FontWeight.w600, ll.ink, h: 1.35),
-                  decoration: InputDecoration.collapsed(hintText: hi ? 'kal 12 baje doodh lana hai' : 'call mom 9pm tomorrow', hintStyle: t(20, FontWeight.w500, ll.ink3)),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            const Spacer(),
+            Tap(
+              onTap: _switchLang,
+              child: Container(
+                height: 34,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(color: ll.chip, borderRadius: BorderRadius.circular(99)),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(hi ? 'हि' : 'EN', style: t(13, FontWeight.w600, ll.ink)),
+                    const SizedBox(width: 6),
+                    Text(hi ? 'Hindi' : 'English', style: t(11, FontWeight.w500, ll.ink2)),
+                  ],
                 ),
-              )
-            : Container(
-                constraints: const BoxConstraints(minHeight: 60),
-                alignment: Alignment.center,
-                child: v.isEmpty
-                    ? Text(_phase == _Phase.listening || _phase == _Phase.starting ? (hi ? 'बोलिए… जैसे “kal 12 baje doodh lana hai”' : 'I’m listening… try “call mom 9pm tomorrow”') : 'Tap the mic to talk', textAlign: TextAlign.center, style: t(17, FontWeight.w500, ll.ink3))
-                    : Text.rich(
-                        TextSpan(children: [
-                          _text.buildTextSpan(context: context, style: t(22, FontWeight.w600, ll.ink, ls: -.015, h: 1.35), withComposing: false),
-                          WidgetSpan(alignment: PlaceholderAlignment.middle, child: Padding(padding: const EdgeInsets.only(left: 6), child: Opacity(opacity: .7, child: IconTile('edit', size: 26, radius: 13)))),
-                        ]),
-                        textAlign: TextAlign.center,
-                      ),
               ),
-      ),
-      if (plan != null) Padding(padding: const EdgeInsets.only(top: 10), child: PlanPreview(plan: plan, mode: _mode, onMode: (m) => setState(() => _mode = m), center: true)),
-      Padding(padding: const EdgeInsets.only(top: 12), child: Text(status, textAlign: TextAlign.center, style: t(13, FontWeight.w400, ll.ink2))),
-      const SizedBox(height: 16),
-      Row(children: [
-        GhostBtn(label: 'Cancel', onTap: () => Navigator.of(context).pop()),
-        const SizedBox(width: 8),
-        if (_phase != _Phase.failed) ...[
-          AnimatedBuilder(
-            animation: _ears,
-            builder: (_, _) {
-              final on = _phase == _Phase.listening;
-              return Container(
-                decoration: on ? BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: ll.blue.withValues(alpha: .25 + .2 * _ears.value), blurRadius: 6 + 8 * _ears.value)]) : null,
-                child: RoundBtn(icon: on ? 'pause' : 'mic', label: on ? 'Pause the mic' : 'Talk', size: 52, iconSize: 22, bg: on ? ll.blue : null, fg: on ? ll.onAccent : null, onTap: _toggleMic),
-              );
-            },
+            ),
+          ],
+        ),
+        Flexible(
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  height: rows.length > 1 ? 96 : 130,
+                  child: Center(
+                    child: AnimatedBuilder(
+                      animation: _ears,
+                      builder: (_, c) => Transform.scale(scale: _phase == _Phase.listening ? 1 + .03 * _ears.value : 1, child: c),
+                      child: SizedBox(
+                        width: rows.length > 1 ? 90 : 124,
+                        height: rows.length > 1 ? 90 : 124,
+                        child: MascotView(stage: 3, controller: _lil, outfit: st.outfitNow),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                GestureDetector(
+                  onTap: () {
+                    _pause(editing: true);
+                    _focus.requestFocus();
+                  },
+                  child: editing
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(color: ll.chip, borderRadius: BorderRadius.circular(18)),
+                          child: TextField(
+                            controller: _text,
+                            focusNode: _focus,
+                            autofocus: _editing,
+                            minLines: 1,
+                            maxLines: 4,
+                            textAlign: TextAlign.center,
+                            textInputAction: TextInputAction.done,
+                            onChanged: (_) => setState(() {
+                              // Changed the words above the rows: start the rows again from the words.
+                              if (_pinned != null && !_text.text.startsWith(_pinBase)) _pinned = null;
+                            }),
+                            onSubmitted: (_) => _commit(),
+                            style: t(20, FontWeight.w600, ll.ink, h: 1.35),
+                            decoration: InputDecoration.collapsed(hintText: hi ? 'kal 12 baje doodh lana hai' : 'call mom 9pm tomorrow', hintStyle: t(20, FontWeight.w500, ll.ink3)),
+                          ),
+                        )
+                      : Container(
+                          constraints: const BoxConstraints(minHeight: 60),
+                          alignment: Alignment.center,
+                          child: v.isEmpty
+                              ? Text(
+                                  _phase == _Phase.listening || _phase == _Phase.starting ? (hi ? 'बोलिए… जैसे “kal 12 baje doodh lana hai”' : 'I’m listening… try “call mom 9pm tomorrow”') : 'Tap the mic to talk',
+                                  textAlign: TextAlign.center,
+                                  style: t(17, FontWeight.w500, ll.ink3),
+                                )
+                              : Text.rich(
+                                  TextSpan(
+                                    children: [
+                                      _text.buildTextSpan(context: context, style: t(22, FontWeight.w600, ll.ink, ls: -.015, h: 1.35), withComposing: false),
+                                      WidgetSpan(
+                                        alignment: PlaceholderAlignment.middle,
+                                        child: Padding(
+                                          padding: const EdgeInsets.only(left: 6),
+                                          child: Opacity(opacity: .7, child: IconTile('edit', size: 26, radius: 13)),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                        ),
+                ),
+                if (link != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: PlanPreview(plan: planFor(st, v), mode: null, onMode: (_) {}, center: true),
+                  )
+                else if (rows.isNotEmpty || _phase != _Phase.listening && _phase != _Phase.starting)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: DraftList(rows: rows, mode: mode, listTitle: _titleNow, onMode: (m) => setState(() => _mode = m), onEdit: _editRow, onAdd: _addRow, onRename: _renameList),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Text(status, textAlign: TextAlign.center, style: t(13, FontWeight.w400, ll.ink2)),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(width: 8),
-        ],
-        Expanded(child: AccentBtn(label: addLabel, enabled: v.trim().isNotEmpty, onTap: _commit)),
-      ]),
-    ]);
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            GhostBtn(label: 'Cancel', onTap: () => Navigator.of(context).pop()),
+            const SizedBox(width: 8),
+            if (_phase != _Phase.failed) ...[
+              AnimatedBuilder(
+                animation: _ears,
+                builder: (_, _) {
+                  final on = _phase == _Phase.listening;
+                  return Container(
+                    decoration: on
+                        ? BoxDecoration(
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: ll.blue.withValues(alpha: .25 + .2 * _ears.value),
+                                blurRadius: 6 + 8 * _ears.value,
+                              ),
+                            ],
+                          )
+                        : null,
+                    child: RoundBtn(icon: on ? 'pause' : 'mic', label: on ? 'Pause the mic' : 'Talk', size: 52, iconSize: 22, bg: on ? ll.blue : null, fg: on ? ll.onAccent : null, onTap: _toggleMic),
+                  );
+                },
+              ),
+              const SizedBox(width: 8),
+            ],
+            Expanded(
+              child: KeyedSubtree(key: const ValueKey('voice-add'), child: AccentBtn(label: addLabel, enabled: canAdd, onTap: _commit)),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 }
 

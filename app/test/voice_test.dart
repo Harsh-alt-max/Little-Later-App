@@ -3,6 +3,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:little_later/data/models.dart';
 import 'package:little_later/ui/voice.dart';
 import 'package:speech_to_text_platform_interface/speech_to_text_platform_interface.dart';
@@ -47,12 +48,15 @@ class FakeRecogniser extends SpeechToTextPlatform {
   }
 }
 
+// One for all tests: the app's speech object hooks into it once.
+final recogniser = FakeRecogniser();
+
 void main() {
+  SpeechToTextPlatform.instance = recogniser;
   setUpAll(loadFonts);
 
   testWidgets('pauses keep every word; only Add saves', (tester) async {
-    final fake = FakeRecogniser();
-    SpeechToTextPlatform.instance = fake;
+    final fake = recogniser..listens = 0;
     final store = demoStore();
     await pumpApp(tester, store);
     final before = store.items.length;
@@ -97,5 +101,82 @@ void main() {
     final added = store.items.where((i) => i.kind == ItemKind.reminder).map((i) => i.title).toList();
     expect(added, containsAll(['Doodh lana', 'Gym jana', 'Dinner']));
     await tester.pump(const Duration(seconds: 61)); // let the recogniser's own timers finish
+  });
+
+  testWidgets('rows can be added, changed and removed by hand', (tester) async {
+    final fake = recogniser..listens = 0;
+    final store = demoStore();
+    await pumpApp(tester, store);
+    final before = store.items.length;
+    openVoice(tester.element(find.text('Paste a link or type a reminder')));
+    await settle(tester, 800);
+
+    // Say two things, then fix the second by hand.
+    fake.say('kal 3 baje doodh lana aur 5 baje gym jana');
+    await settle(tester, 300);
+    expect(find.text('Add 2'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('draft-1')));
+    await settle(tester, 800);
+    expect(find.textContaining('Mic paused'), findsOneWidget);
+    await tester.enterText(find.byKey(const ValueKey('draft-title')), 'Gym with Riya');
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('draft-save')));
+    await settle(tester, 800);
+    expect(find.text('Gym with Riya'), findsOneWidget);
+
+    // Add one by hand, then remove it again.
+    await tester.tap(find.byKey(const ValueKey('draft-add')));
+    await settle(tester, 800);
+    await tester.enterText(find.byKey(const ValueKey('draft-title')), 'Pay rent');
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('draft-save')));
+    await settle(tester, 800);
+    expect(find.text('Add 3'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('draft-2')));
+    await settle(tester, 800);
+    await tester.tap(find.text('Remove'));
+    await settle(tester, 800);
+    expect(find.text('Pay rent'), findsNothing);
+
+    // Talk again: new words come in under the hand-made rows.
+    await tester.tap(find.bySemanticsLabel('Talk'));
+    await settle(tester, 600);
+    fake.say('phir 7 baje dinner');
+    await settle(tester, 300);
+    expect(find.text('Gym with Riya'), findsOneWidget);
+    expect(find.text('Add 3'), findsOneWidget);
+    expect(find.text('Tomorrow, 7:00 pm'), findsOneWidget, reason: 'same day as the rows above');
+    await shot(tester, 'midnight_9b_voice_rows');
+
+    // As a to-do list.
+    await tester.tap(find.text('1 to-do list'));
+    await settle(tester, 300);
+    await tester.tap(find.text('Add list'));
+    await settle(tester, 1500);
+    expect(store.items.length, before + 1);
+    final list = store.items.firstWhere((i) => i.kind == ItemKind.todoList);
+    expect(list.tasks.map((t) => t.text).toList(), ['Doodh lana · 3:00 pm', 'Gym with Riya · 5:00 pm', 'Dinner · 7:00 pm']);
+    await tester.pump(const Duration(seconds: 61));
+  });
+
+  testWidgets('without speaking: add reminders straight from the panel', (tester) async {
+    recogniser.listens = 0;
+    final store = demoStore();
+    await pumpApp(tester, store);
+    openVoice(tester.element(find.text('Paste a link or type a reminder')));
+    await settle(tester, 800);
+    await tester.tap(find.bySemanticsLabel('Pause the mic'));
+    await settle(tester, 400);
+    await tester.tap(find.byKey(const ValueKey('draft-add')));
+    await settle(tester, 800);
+    await tester.enterText(find.byKey(const ValueKey('draft-title')), 'Call mom');
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('draft-save')));
+    await settle(tester, 800);
+    expect(find.text('Call mom'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('voice-add')));
+    await settle(tester, 1500);
+    expect(store.items.any((i) => i.kind == ItemKind.reminder && i.title == 'Call mom' && i.whenTs > 0), isTrue);
+    await tester.pump(const Duration(seconds: 61));
   });
 }
