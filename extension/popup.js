@@ -34,19 +34,37 @@ function dayLabel(d) {
 // ---------------------------------------------------------------- state
 const state = { page: null, folders: [], folder: null, when: 'none', at: null, items: [], libFolder: null };
 
-const FOLDER_ICON = '<svg viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>';
+// Same colours as the phone app: picked in the app, or a stable one from the name.
+const PALETTE = ['#FF9F7E', '#F5C451', '#7ED492', '#5FC8E8', '#7E8CFF', '#C58BFF', '#FF7FB0', '#B9B4AA'];
+function folderColor(f) {
+  if (typeof f.color === 'number') return `#${(f.color & 0xffffff).toString(16).padStart(6, '0')}`;
+  let h = 0;
+  for (const c of String(f.name).toLowerCase()) h = (h * 31 + c.charCodeAt(0)) & 0x7fffffff;
+  return PALETTE[h % PALETTE.length];
+}
+function folderChip(f, on) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = `chip${on ? ' on' : ''}`;
+  if (f) {
+    const d = document.createElement('span');
+    d.className = 'dot';
+    d.style.background = folderColor(f);
+    b.append(d);
+    if (f.collab) b.insertAdjacentHTML('beforeend', USERS_ICON);
+  }
+  b.append(document.createTextNode(f ? f.name : 'All'));
+  if (f) b.title = f.collab ? 'Shared folder: friends get it too' : f.name;
+  return b;
+}
+
 const USERS_ICON = '<svg viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><path d="M15.5 5.6a3.2 3.2 0 0 1 0 5.8M17.5 14.2A5.5 5.5 0 0 1 20.5 19"/></svg>';
 
 function renderFolders() {
   const box = $('folders');
   box.innerHTML = '';
   for (const f of state.folders) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = `chip${state.folder === f ? ' on' : ''}`;
-    b.innerHTML = f.collab ? USERS_ICON : FOLDER_ICON;
-    b.append(document.createTextNode(f.name));
-    b.title = f.collab ? 'Shared folder: friends get it too' : f.name;
+    const b = folderChip(f, state.folder === f);
     b.onclick = () => {
       state.folder = state.folder === f ? null : f;
       renderFolders();
@@ -98,22 +116,7 @@ function renderRecent(items) {
   $('recent-wrap').hidden = !list.length;
   const ul = $('recent');
   ul.innerHTML = '';
-  for (const it of list) {
-    const li = document.createElement('li');
-    const th = document.createElement('span');
-    th.className = 'th';
-    if (it.thumbnail) th.style.backgroundImage = `url("${String(it.thumbnail).replace(/"/g, '%22')}")`;
-    const t = document.createElement('div');
-    t.className = 't';
-    const b = document.createElement('b');
-    b.textContent = it.title || it.url;
-    const s = document.createElement('small');
-    s.textContent = [it.folder, host(it.url)].filter(Boolean).join(' · ');
-    t.append(b, s);
-    li.append(th, t);
-    li.onclick = () => chrome.tabs.create({ url: it.url });
-    ul.append(li);
-  }
+  for (const it of list) ul.append(linkRow(it, true));
 }
 
 // ---------------------------------------------------------------- my links
@@ -150,20 +153,16 @@ async function renderLib() {
   const gen = ++libGen;
   const box = $('lib-folders');
   box.innerHTML = '';
-  const chip = (label, f, icon) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = `chip${state.libFolder === f ? ' on' : ''}`;
-    if (icon) b.innerHTML = icon;
-    b.append(document.createTextNode(label));
+  const chip = (f) => {
+    const b = folderChip(f, state.libFolder === f);
     b.onclick = () => {
       state.libFolder = f;
       renderLib();
     };
     box.append(b);
   };
-  chip('All', null);
-  for (const f of state.folders) chip(f.name, f, f.collab ? USERS_ICON : FOLDER_ICON);
+  chip(null);
+  for (const f of state.folders) chip(f);
 
   const f = state.libFolder;
   const ul = $('lib');

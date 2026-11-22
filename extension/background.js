@@ -44,7 +44,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       if (!link.savable) throw new Error('page');
     }
     await saveLink({ url: link.url, title: link.title, thumbnail: link.image, folder: await lastFolder() });
-    badge('✓', '#3D7BFF');
+    badge('✓', '#FF9F7E');
   } catch {
     badge('!', '#E5484D');
   }
