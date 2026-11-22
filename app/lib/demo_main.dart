@@ -1,6 +1,9 @@
 // Web demo of the real app for showing people: sample data, no account,
 // nothing is saved. Build: flutter build web -t lib/demo_main.dart
+import 'dart:js_interop';
+
 import 'package:material_ui/material_ui.dart';
+import 'package:web/web.dart' as web;
 
 import 'app.dart';
 import 'data/models.dart';
@@ -32,8 +35,20 @@ void main() {
     goa.collab = true;
     goa.extra.addAll({'collabId': 'cf_demo', 'ownerEmail': 'harsh@example.com', 'ownerName': 'Harsh', 'collaborators': ['riya@example.com', 'aman@example.com']});
   }
+  final reminders = Reminders(store);
+  // The preview page can ask for a reminder to "go off" (there are no real
+  // notifications in a browser).
+  web.window.addEventListener(
+    'message',
+    ((web.MessageEvent e) {
+      final d = e.data;
+      if (d == null || !d.isA<JSString>() || (d as JSString).toDart != 'll-ring') return;
+      final it = store.items.where((i) => i.kind == ItemKind.reminder && !i.isDone).firstOrNull ?? store.items.where((i) => i.whenTs > 0 && !i.isDone).firstOrNull;
+      if (it != null) reminders.showNow(it.id);
+    }).toJS,
+  );
   runApp(LittleLaterApp(
     store: store,
-    services: Services(auth: AuthService(false), sync: SyncService(store, enabled: false), reminders: Reminders(store), platform: false),
+    services: Services(auth: AuthService(false), sync: SyncService(store, enabled: false), reminders: reminders, platform: false),
   ));
 }

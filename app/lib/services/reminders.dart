@@ -18,6 +18,9 @@ class Reminders {
   final _plugin = FlutterLocalNotificationsPlugin();
   final _tapped = StreamController<String>.broadcast();
   Stream<String> get tapped => _tapped.stream;
+
+  /// Open the full-screen reminder as if its notification was tapped (web preview).
+  void showNow(String id) => _tapped.add(id);
   bool _ready = false;
   Timer? _debounce;
   String? launchItemId;

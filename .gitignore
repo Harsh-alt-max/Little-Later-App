@@ -6,3 +6,4 @@ dist/
 .DS_Store
 app/test/shots/out/
 app/test/v2shots/
+website/preview/app/

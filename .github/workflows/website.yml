@@ -3,7 +3,7 @@ name: Publish website
 on:
   push:
     branches: [main]
-    paths: ['website/**', '.github/workflows/website.yml']
+    paths: ['website/**', 'app/**', '.github/workflows/website.yml']
   workflow_dispatch:
 
 permissions:
@@ -14,6 +14,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # The preview page runs the real app (with sample things) in the browser.
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.50.0'
+          channel: stable
+          cache: true
+      - name: Build the app preview
+        working-directory: app
+        run: |
+          flutter pub get
+          flutter build web -t lib/demo_main.dart --release
+          sed -i 's|<base href="/">|<base href="./">|' build/web/index.html
+          rm -rf ../website/preview/app
+          cp -r build/web ../website/preview/app
       # Copies website/ to the gh-pages branch, which GitHub Pages serves at
       # https://harsh-alt-max.github.io/little-later-app/
       - uses: peaceiris/actions-gh-pages@v4
