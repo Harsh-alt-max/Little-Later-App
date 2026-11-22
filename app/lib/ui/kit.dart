@@ -170,13 +170,13 @@ class GhostBtn extends StatelessWidget {
 
 /// Round neutral button with an ink icon.
 class RoundBtn extends StatelessWidget {
-  const RoundBtn({super.key, required this.icon, this.onTap, this.size = 46, this.iconSize = 20, this.label, this.dot = false, this.bg});
+  const RoundBtn({super.key, required this.icon, this.onTap, this.size = 46, this.iconSize = 20, this.label, this.dot = false, this.bg, this.fg});
   final String icon;
   final VoidCallback? onTap;
   final double size, iconSize;
   final String? label;
   final bool dot;
-  final Color? bg;
+  final Color? bg, fg;
   @override
   Widget build(BuildContext context) {
     final ll = LL.of(context);
@@ -188,7 +188,7 @@ class RoundBtn extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(shape: BoxShape.circle, color: bg ?? (ll.dark ? ll.surface2 : ll.surface), border: ll.dark ? null : Border.all(color: const Color(0x0D17130F))),
         child: Stack(alignment: Alignment.center, children: [
-          LLIcon(icon, size: iconSize, color: ll.ink),
+          LLIcon(icon, size: iconSize, color: fg ?? ll.ink),
           if (dot) Positioned(top: size * .2, right: size * .22, child: Container(width: 8, height: 8, decoration: BoxDecoration(shape: BoxShape.circle, color: ll.ember))),
         ]),
       ),

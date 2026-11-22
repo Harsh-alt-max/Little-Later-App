@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 
 /// Stroke icon sprite ported from v7 (`<symbol id="i-…">`). Drawn at 24x24, recoloured with [color].
 const Map<String, String> kIconPaths = {
+  'pause': '<path d="M9 6v12M15 6v12"/>',
   'mic': '<rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>',
   'photo': '<rect x="3.5" y="5" width="17" height="14" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="M20 16l-5-5-8 8"/>',
   'ext': '<path d="M14 5h5v5M19 5l-8 8"/><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/>',
