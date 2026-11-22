@@ -712,7 +712,7 @@ class SaveBodyState extends State<SaveBody> {
       if (_mode == Mode.todo) _stepsWidget(ll),
       if (plan != null)
         _fade(Padding(padding: const EdgeInsets.only(top: 8), child: PlanPreview(plan: plan, mode: _splitMode, onMode: (m) => setState(() => _splitMode = m)))),
-      if (_mode != Mode.link)
+      if (_mode != Mode.link && plan?.split == null)
         _fade(Padding(
           padding: const EdgeInsets.only(top: 8),
           child: Wrap(spacing: 8, children: [
@@ -748,6 +748,8 @@ class SaveBodyState extends State<SaveBody> {
         ]),
         if (group != null && group.collab && _mode != Mode.link)
           Padding(padding: const EdgeInsets.fromLTRB(4, 8, 4, 0), child: Text('Everyone in ${group.name} gets this reminder. It only shows inside the group.', style: t(13, FontWeight.w400, ll.ink2))),
+        // Several things typed at once: each row has its own time above.
+        if (plan?.split == null) ...[
         SheetLabel(_mode == Mode.todo ? 'When' : _mode == Mode.link ? 'Bring it back' : 'When${nlFound ? ' · set from what you typed' : ''}'),
         Builder(builder: (_) {
           final locked = nlFound || (_mode == Mode.link && _sayWhen != null);
@@ -830,7 +832,8 @@ class SaveBodyState extends State<SaveBody> {
               ),
           ]);
         }),
-        if (_mode != Mode.link) ...[
+        ],
+        if (_mode != Mode.link && plan?.split == null) ...[
           const SheetLabel('Repeat'),
           Wrap(spacing: 8, runSpacing: 8, children: [
             PillChip(label: 'Once', on: _repeat.isEmpty && !_pickDays, onTap: () => setState(() => [_repeat = [], _pickDays = false])),
