@@ -175,9 +175,6 @@ void main() {
       await shot(tester, '${look}_9_christmas');
       Festivals.i.preview(null);
       await settle(tester, 300);
-      return;
-      await tester.tap(find.text('In 15 min'));
-      await settle(tester, 1200);
     });
   }
 }
